@@ -16,9 +16,7 @@ export async function parseResume(filePath) {
 
   const ext = path.extname(filePath).toLowerCase();
 
-  if (ext === '.txt') {
-    return fs.readFileSync(filePath, 'utf-8');
-  } else if (ext === '.pdf') {
+  if (ext === '.pdf') {
     const dataBuffer = fs.readFileSync(filePath);
     try {
       const data = await pdf(dataBuffer);
@@ -27,6 +25,6 @@ export async function parseResume(filePath) {
       throw new Error(`Failed to parse PDF resume: ${error.message}`);
     }
   } else {
-    throw new Error(`Unsupported resume file format: ${ext}. Only .pdf and .txt are supported.`);
+    throw new Error(`Unsupported resume file format: ${ext}. Only .pdf is supported.`);
   }
 }
