@@ -1,6 +1,8 @@
 import fs from 'fs';
 import path from 'path';
-import pdf from 'pdf-parse';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const pdf = require('pdf-parse');
 
 /**
  * Parses and extracts text from a PDF or TXT resume file.
