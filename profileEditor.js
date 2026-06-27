@@ -37,6 +37,7 @@ export async function editProfile(profile) {
         { title: '💼 Edit Experience', value: 'experience' },
         { title: '🎓 Edit Education', value: 'education' },
         { title: '🎯 Edit Target Job Title & Location', value: 'target' },
+        { title: '🔄 Re-upload & Update Resume PDF', value: 'reupload' },
         { title: '✅ Confirmed & Save (Proceed)', value: 'save' },
         { title: '❌ Exit Without Saving', value: 'exit' }
       ]
@@ -298,6 +299,9 @@ export async function editProfile(profile) {
         }
         break;
       }
+
+      case 'reupload':
+        return { action: 'reupload' };
 
       case 'save':
         running = false;
