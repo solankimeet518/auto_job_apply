@@ -1,0 +1,7 @@
+node_modules/
+.env
+qa_memory.json
+profile.json
+pending_jobs.json
+.DS_Store
+*.log
