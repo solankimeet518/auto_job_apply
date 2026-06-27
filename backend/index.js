@@ -13,7 +13,9 @@ let botState = {
   pendingQuestions: [], // [{ id, text, jobUrl }]
   answers: {}, // Question cache for the current session
   targetJob: config.job.targetJob,
-  targetLocation: config.job.targetLocation,
+  targetLocations: [config.job.targetLocation].filter(Boolean),
+  jobTypes: [],
+  workModes: [],
 };
 
 // Helper to log messages inside the server and bot
@@ -84,7 +86,9 @@ const server = Bun.serve({
         logBotActivity('🤖 Extracting resume profile via Ollama...');
         const extracted = await extractProfile(text, botState.targetJob);
         
-        extracted.targetLocation = botState.targetLocation;
+        extracted.targetLocations = botState.targetLocations || [config.job.targetLocation].filter(Boolean);
+        extracted.jobTypes = [];
+        extracted.workModes = [];
 
         return getCorsResponse({ status: 'extracted', profile: extracted });
       }
@@ -118,12 +122,14 @@ const server = Bun.serve({
         }
 
         botState.targetJob = body.targetJob || config.job.targetJob;
-        botState.targetLocation = body.targetLocation || config.job.targetLocation;
+        botState.targetLocations = body.targetLocations || [config.job.targetLocation].filter(Boolean);
+        botState.jobTypes = body.jobTypes || [];
+        botState.workModes = body.workModes || [];
         botState.status = 'running';
         botState.logs = [];
         botState.pendingQuestions = [];
 
-        logBotActivity(`🚀 Starting job search for "${botState.targetJob}" in "${botState.targetLocation}"...`);
+        logBotActivity(`🚀 Starting job search for "${botState.targetJob}" in ${JSON.stringify(botState.targetLocations)}...`);
 
         // We run the automation flow in the background
         startAutomationLoop();

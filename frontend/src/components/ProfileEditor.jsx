@@ -3,14 +3,61 @@ import { User, Link as LinkIcon, Briefcase, GraduationCap, Save, RefreshCw, Plus
 import { api } from '../api';
 
 export default function ProfileEditor({ initialProfile, onSaveComplete, onReuploadRequested }) {
-  const [profile, setProfile] = useState({ ...initialProfile });
+  const [profile, setProfile] = useState(() => {
+    const prof = { ...initialProfile };
+    // Handle name split if it comes as a single name from a legacy configuration
+    if (prof.name && !prof.firstName && !prof.lastName) {
+      const parts = prof.name.trim().split(/\s+/);
+      prof.firstName = parts[0] || '';
+      prof.lastName = parts.slice(1).join(' ') || '';
+    }
+    prof.firstName = prof.firstName || '';
+    prof.lastName = prof.lastName || '';
+    prof.targetLocations = prof.targetLocations || (prof.targetLocation ? [prof.targetLocation] : []);
+    prof.jobTypes = prof.jobTypes || [];
+    prof.workModes = prof.workModes || [];
+    return prof;
+  });
   const [activeTab, setActiveTab] = useState('basic');
   const [saveLoading, setSaveLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
   
-  // Temporary skill state for interactive input
+  // Temporary interactive states
   const [newSkill, setNewSkill] = useState('');
+  const [newLocation, setNewLocation] = useState('');
+
+  const AVAILABLE_JOB_TYPES = ['Full-time', 'Part-time', 'Contract', 'Temporary', 'Internship'];
+  const AVAILABLE_WORK_MODES = ['Remote', 'Hybrid', 'On-site'];
+
+  const handleCheckboxChange = (field, item, isChecked) => {
+    setProfile(prev => {
+      const current = prev[field] || [];
+      const updated = isChecked
+        ? [...current, item]
+        : current.filter(x => x !== item);
+      return { ...prev, [field]: updated };
+    });
+  };
+
+  const handleAddLocation = (e) => {
+    e.preventDefault();
+    const cleanLoc = newLocation.trim();
+    if (cleanLoc && !profile.targetLocations.includes(cleanLoc)) {
+      setProfile(prev => ({
+        ...prev,
+        targetLocations: [...prev.targetLocations, cleanLoc]
+      }));
+      setNewLocation('');
+    }
+  };
+
+  const handleRemoveLocation = (locToRemove) => {
+    setProfile(prev => ({
+      ...prev,
+      targetLocations: prev.targetLocations.filter(l => l !== locToRemove)
+    }));
+  };
 
   const handleBasicChange = (field, value) => {
     setProfile(prev => ({ ...prev, [field]: value }));
@@ -207,11 +254,20 @@ export default function ProfileEditor({ initialProfile, onSaveComplete, onReuplo
             <h3 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '24px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>Basic Information</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '24px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: '600', textTransform: 'uppercase' }}>Full Name</label>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: '600', textTransform: 'uppercase' }}>First Name</label>
                 <input
                   type="text"
-                  value={profile.name || ''}
-                  onChange={(e) => handleBasicChange('name', e.target.value)}
+                  value={profile.firstName || ''}
+                  onChange={(e) => handleBasicChange('firstName', e.target.value)}
+                  style={{ width: '100%', padding: '12px 16px', borderRadius: '10px', background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: '600', textTransform: 'uppercase' }}>Last Name</label>
+                <input
+                  type="text"
+                  value={profile.lastName || ''}
+                  onChange={(e) => handleBasicChange('lastName', e.target.value)}
                   style={{ width: '100%', padding: '12px 16px', borderRadius: '10px', background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
                 />
               </div>
@@ -234,7 +290,7 @@ export default function ProfileEditor({ initialProfile, onSaveComplete, onReuplo
                 />
               </div>
               <div>
-                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: '600', textTransform: 'uppercase' }}>Location (City, State/Country)</label>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: '600', textTransform: 'uppercase' }}>Current Location (City, State/Country)</label>
                 <input
                   type="text"
                   value={profile.location || ''}
@@ -251,14 +307,104 @@ export default function ProfileEditor({ initialProfile, onSaveComplete, onReuplo
                   style={{ width: '100%', padding: '12px 16px', borderRadius: '10px', background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
                 />
               </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: '600', textTransform: 'uppercase' }}>📍 Target Search Location</label>
+            </div>
+
+            {/* Target Locations Tag Input */}
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: '600', textTransform: 'uppercase' }}>📍 Target Search Locations (Multiple)</label>
+              <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
                 <input
                   type="text"
-                  value={profile.targetLocation || ''}
-                  onChange={(e) => handleBasicChange('targetLocation', e.target.value)}
-                  style={{ width: '100%', padding: '12px 16px', borderRadius: '10px', background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
+                  placeholder="Add target location (e.g. Remote, San Francisco, New York)..."
+                  value={newLocation}
+                  onChange={(e) => setNewLocation(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddLocation(e);
+                    }
+                  }}
+                  style={{ flex: 1, padding: '12px 16px', borderRadius: '10px', background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
                 />
+                <button
+                  type="button"
+                  onClick={handleAddLocation}
+                  style={{
+                    background: 'rgba(139, 92, 246, 0.1)', color: 'var(--primary)',
+                    border: '1px solid rgba(139, 92, 246, 0.3)', padding: '0 20px', borderRadius: '10px',
+                    fontWeight: '600', cursor: 'pointer', transition: 'all 0.3s ease'
+                  }}
+                >
+                  Add
+                </button>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '12px', border: '1px solid var(--border)', borderRadius: '10px', background: 'rgba(0, 0, 0, 0.1)', minHeight: '48px' }}>
+                {profile.targetLocations?.length === 0 ? (
+                  <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>No locations added. Target locations are required for Indeed search.</span>
+                ) : (
+                  profile.targetLocations?.map((loc, index) => (
+                    <span
+                      key={index}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', background: 'rgba(139, 92, 246, 0.08)',
+                        border: '1px solid rgba(139, 92, 246, 0.25)', padding: '4px 10px', borderRadius: '30px',
+                        fontSize: '13px', fontWeight: '500', color: 'var(--text)'
+                      }}
+                    >
+                      {loc}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveLocation(loc)}
+                        style={{
+                          background: 'transparent', border: 'none', color: 'var(--text-muted)',
+                          marginLeft: '8px', cursor: 'pointer', fontSize: '11px', display: 'flex',
+                          alignItems: 'center', justifyContent: 'center'
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Job Types & Work Modes Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '24px' }}>
+              {/* Job Types */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '12px', fontWeight: '600', textTransform: 'uppercase' }}>💼 Job Types (Select Multiple)</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border)', padding: '16px', borderRadius: '12px' }}>
+                  {AVAILABLE_JOB_TYPES.map(type => (
+                    <label key={type} style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '14px' }}>
+                      <input
+                        type="checkbox"
+                        checked={profile.jobTypes?.includes(type) || false}
+                        onChange={(e) => handleCheckboxChange('jobTypes', type, e.target.checked)}
+                        style={{ width: '16px', height: '16px', accentColor: 'var(--primary)' }}
+                      />
+                      {type}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Work Modes */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '12px', fontWeight: '600', textTransform: 'uppercase' }}>🏢 Work Modes (Select Multiple)</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border)', padding: '16px', borderRadius: '12px' }}>
+                  {AVAILABLE_WORK_MODES.map(mode => (
+                    <label key={mode} style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '14px' }}>
+                      <input
+                        type="checkbox"
+                        checked={profile.workModes?.includes(mode) || false}
+                        onChange={(e) => handleCheckboxChange('workModes', mode, e.target.checked)}
+                        style={{ width: '16px', height: '16px', accentColor: 'var(--primary)' }}
+                      />
+                      {mode}
+                    </label>
+                  ))}
+                </div>
               </div>
             </div>
             

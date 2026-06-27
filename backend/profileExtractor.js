@@ -24,7 +24,8 @@ ${resumeText}
 
 You must return ONLY a valid JSON object matching the following structure:
 {
-  "name": "",
+  "firstName": "",
+  "lastName": "",
   "email": "",
   "phone": "",
   "location": "",
@@ -53,7 +54,10 @@ You must return ONLY a valid JSON object matching the following structure:
     }
   ],
   "skills": [],
-  "targetJob": "${targetJob}"
+  "targetJob": "${targetJob}",
+  "targetLocations": [],
+  "jobTypes": [],
+  "workModes": []
 }
 
 Rules:
