@@ -57,7 +57,18 @@ You must return ONLY a valid JSON object matching the following structure:
   "targetJob": "${targetJob}",
   "targetLocations": [],
   "jobTypes": [],
-  "workModes": []
+  "workModes": [],
+  "projects": [
+    {
+      "title": "",
+      "role": "",
+      "technologies": [],
+      "description": "",
+      "link": ""
+    }
+  ],
+  "keyAchievements": [],
+  "additionalInfo": ""
 }
 
 Rules:

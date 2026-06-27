@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Link as LinkIcon, Briefcase, GraduationCap, Save, RefreshCw, Plus, Trash2, Globe, Tag } from 'lucide-react';
+import { User, Link as LinkIcon, Briefcase, GraduationCap, Save, RefreshCw, Plus, Trash2, Globe, Tag, Folder, Award } from 'lucide-react';
 import { api } from '../api';
 
 export default function ProfileEditor({ initialProfile, onSaveComplete, onReuploadRequested }) {
@@ -26,6 +26,7 @@ export default function ProfileEditor({ initialProfile, onSaveComplete, onReuplo
   // Temporary interactive states
   const [newSkill, setNewSkill] = useState('');
   const [newLocation, setNewLocation] = useState('');
+  const [newAchievement, setNewAchievement] = useState('');
 
   const AVAILABLE_JOB_TYPES = ['Full-time', 'Part-time', 'Contract', 'Temporary', 'Internship'];
   const AVAILABLE_WORK_MODES = ['Remote', 'Hybrid', 'On-site'];
@@ -56,6 +57,50 @@ export default function ProfileEditor({ initialProfile, onSaveComplete, onReuplo
     setProfile(prev => ({
       ...prev,
       targetLocations: prev.targetLocations.filter(l => l !== locToRemove)
+    }));
+  };
+
+  // Project handlers
+  const handleProjectChange = (index, field, value) => {
+    const updated = [...profile.projects];
+    updated[index] = { ...updated[index], [field]: value };
+    setProfile(prev => ({ ...prev, projects: updated }));
+  };
+
+  const handleAddProject = () => {
+    setProfile(prev => ({
+      ...prev,
+      projects: [
+        ...prev.projects,
+        { title: '', role: '', technologies: [], description: '', link: '' }
+      ]
+    }));
+  };
+
+  const handleRemoveProject = (index) => {
+    setProfile(prev => ({
+      ...prev,
+      projects: prev.projects.filter((_, idx) => idx !== index)
+    }));
+  };
+
+  // Achievement handlers
+  const handleAddAchievement = (e) => {
+    e.preventDefault();
+    const cleanAch = newAchievement.trim();
+    if (cleanAch && !profile.keyAchievements.includes(cleanAch)) {
+      setProfile(prev => ({
+        ...prev,
+        keyAchievements: [...prev.keyAchievements, cleanAch]
+      }));
+      setNewAchievement('');
+    }
+  };
+
+  const handleRemoveAchievement = (achToRemove) => {
+    setProfile(prev => ({
+      ...prev,
+      keyAchievements: prev.keyAchievements.filter(a => a !== achToRemove)
     }));
   };
 
@@ -216,6 +261,32 @@ export default function ProfileEditor({ initialProfile, onSaveComplete, onReuplo
           }}
         >
           <GraduationCap size={18} style={{ marginRight: '10px' }} /> Education ({profile.education?.length || 0})
+        </button>
+
+        <button
+          onClick={() => setActiveTab('projects')}
+          style={{
+            display: 'flex', alignItems: 'center', width: '100%', border: 'none', borderRadius: '10px',
+            padding: '12px 16px', fontSize: '14px', fontWeight: '600', cursor: 'pointer',
+            background: activeTab === 'projects' ? 'var(--primary)' : 'transparent',
+            color: activeTab === 'projects' ? '#fff' : 'var(--text-muted)',
+            transition: 'all 0.3s ease', textAlign: 'left'
+          }}
+        >
+          <Folder size={18} style={{ marginRight: '10px' }} /> Projects ({profile.projects?.length || 0})
+        </button>
+
+        <button
+          onClick={() => setActiveTab('additional')}
+          style={{
+            display: 'flex', alignItems: 'center', width: '100%', border: 'none', borderRadius: '10px',
+            padding: '12px 16px', fontSize: '14px', fontWeight: '600', cursor: 'pointer',
+            background: activeTab === 'additional' ? 'var(--primary)' : 'transparent',
+            color: activeTab === 'additional' ? '#fff' : 'var(--text-muted)',
+            transition: 'all 0.3s ease', textAlign: 'left'
+          }}
+        >
+          <Award size={18} style={{ marginRight: '10px' }} /> Achievements & Info
         </button>
 
         <hr style={{ borderColor: 'var(--border)', margin: '16px 0' }} />
@@ -698,6 +769,166 @@ export default function ProfileEditor({ initialProfile, onSaveComplete, onReuplo
                   </div>
                 ))
               )}
+            </div>
+          </div>
+        )}
+
+        {/* 5. PROJECTS TAB */}
+        {activeTab === 'projects' && (
+          <div className="fade-in" style={{ flex: 1 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
+              <h3 style={{ fontSize: '20px', fontWeight: '800' }}>Projects</h3>
+              <button
+                type="button"
+                onClick={handleAddProject}
+                style={{
+                  display: 'flex', alignItems: 'center', background: 'var(--primary)', color: '#fff',
+                  border: 'none', padding: '8px 16px', borderRadius: '8px', fontSize: '13px',
+                  fontWeight: '600', cursor: 'pointer', transition: 'all 0.3s ease'
+                }}
+              >
+                <Plus size={16} style={{ marginRight: '6px' }} /> Add Project
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {profile.projects?.length === 0 ? (
+                <p style={{ color: 'var(--text-muted)', fontSize: '14px', textAlign: 'center', padding: '40px 0' }}>No projects listed. Click "Add Project" to add projects.</p>
+              ) : (
+                profile.projects?.map((proj, idx) => (
+                  <div key={idx} className="fade-in" style={{ border: '1px solid var(--border)', borderRadius: '16px', padding: '24px', background: 'rgba(255, 255, 255, 0.01)', position: 'relative' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveProject(idx)}
+                      style={{
+                        position: 'absolute', top: '24px', right: '24px', border: 'none', background: 'transparent',
+                        color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', borderRadius: '4px'
+                      }}
+                      onMouseOver={(e) => e.currentTarget.style.color = 'var(--danger)'}
+                      onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+                    >
+                      <Trash2 size={18} />
+                    </button>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '16px', maxWidth: '90%' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', fontWeight: '600', textTransform: 'uppercase' }}>Project Title</label>
+                        <input
+                          type="text"
+                          value={proj.title || ''}
+                          onChange={(e) => handleProjectChange(idx, 'title', e.target.value)}
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none', fontSize: '14px' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', fontWeight: '600', textTransform: 'uppercase' }}>Role/Contribution</label>
+                        <input
+                          type="text"
+                          value={proj.role || ''}
+                          onChange={(e) => handleProjectChange(idx, 'role', e.target.value)}
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none', fontSize: '14px' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', fontWeight: '600', textTransform: 'uppercase' }}>Technologies Used (comma separated)</label>
+                        <input
+                          type="text"
+                          value={Array.isArray(proj.technologies) ? proj.technologies.join(', ') : proj.technologies || ''}
+                          onChange={(e) => handleProjectChange(idx, 'technologies', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+                          placeholder="e.g. React, Docker, Rust"
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none', fontSize: '14px' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', fontWeight: '600', textTransform: 'uppercase' }}>Project Link / GitHub</label>
+                        <input
+                          type="text"
+                          value={proj.link || ''}
+                          onChange={(e) => handleProjectChange(idx, 'link', e.target.value)}
+                          placeholder="e.g. https://github.com/..."
+                          style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none', fontSize: '14px' }}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', fontWeight: '600', textTransform: 'uppercase' }}>Project Description</label>
+                      <textarea
+                        value={proj.description || ''}
+                        onChange={(e) => handleProjectChange(idx, 'description', e.target.value)}
+                        rows={3}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none', resize: 'vertical', fontSize: '13px', fontFamily: 'inherit' }}
+                      />
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 6. ACHIEVEMENTS & ADDITIONAL TAB */}
+        {activeTab === 'additional' && (
+          <div className="fade-in" style={{ flex: 1 }}>
+            <h3 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '24px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>Achievements & Additional Info</h3>
+            
+            {/* Key Achievements */}
+            <div style={{ marginBottom: '32px' }}>
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: '600', textTransform: 'uppercase' }}>🏆 Key Achievements (Certifications, Awards, Milestones)</label>
+              
+              <form onSubmit={handleAddAchievement} style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+                <input
+                  type="text"
+                  placeholder="Add achievement or award (e.g. Certified AWS Developer, Hackathon Winner)..."
+                  value={newAchievement}
+                  onChange={(e) => setNewAchievement(e.target.value)}
+                  style={{ flex: 1, padding: '12px 16px', borderRadius: '10px', background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
+                />
+                <button
+                  type="submit"
+                  style={{
+                    background: 'rgba(139, 92, 246, 0.1)', color: 'var(--primary)',
+                    border: '1px solid rgba(139, 92, 246, 0.3)', padding: '0 20px', borderRadius: '10px',
+                    fontWeight: '600', cursor: 'pointer', transition: 'all 0.3s ease'
+                  }}
+                >
+                  Add
+                </button>
+              </form>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px', background: 'rgba(0, 0, 0, 0.1)' }}>
+                {profile.keyAchievements?.length === 0 ? (
+                  <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>No achievements listed yet.</p>
+                ) : (
+                  profile.keyAchievements?.map((ach, index) => (
+                    <div key={index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', padding: '10px 16px', borderRadius: '8px', fontSize: '14px' }}>
+                      <span style={{ flex: 1 }}>🏆 {ach}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveAchievement(ach)}
+                        style={{
+                          background: 'transparent', border: 'none', color: 'var(--text-muted)',
+                          cursor: 'pointer', marginLeft: '12px'
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Additional Info Section */}
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: '600', textTransform: 'uppercase' }}>📁 Additional Information (Hobbies, Languages, Custom Sections)</label>
+              <textarea
+                value={profile.additionalInfo || ''}
+                onChange={(e) => handleBasicChange('additionalInfo', e.target.value)}
+                placeholder="Enter any other details you want to add beside your resume (e.g. Languages: English (Fluent), Spanish (Basic); Interests: Open Source, Blog writing)..."
+                rows={6}
+                style={{ width: '100%', padding: '14px 16px', borderRadius: '10px', background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none', resize: 'vertical', fontFamily: 'inherit', fontSize: '14px' }}
+              />
             </div>
           </div>
         )}

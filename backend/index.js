@@ -89,6 +89,9 @@ const server = Bun.serve({
         extracted.targetLocations = botState.targetLocations || [config.job.targetLocation].filter(Boolean);
         extracted.jobTypes = [];
         extracted.workModes = [];
+        extracted.projects = extracted.projects || [];
+        extracted.keyAchievements = extracted.keyAchievements || [];
+        extracted.additionalInfo = extracted.additionalInfo || '';
 
         return getCorsResponse({ status: 'extracted', profile: extracted });
       }
