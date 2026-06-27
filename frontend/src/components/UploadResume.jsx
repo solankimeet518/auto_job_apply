@@ -96,7 +96,7 @@ export default function UploadResume({ onUploadComplete }) {
             position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
             background: 'rgba(9, 10, 15, 0.95)', borderRadius: '20px',
             display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center',
-            padding: '24px', z-index: 10, textAlign: 'center'
+            padding: '24px', zIndex: 10, textAlign: 'center'
           }}>
             {/* Spinning Loader */}
             <div style={{
