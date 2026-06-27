@@ -19,12 +19,17 @@ export async function parseResume(filePath) {
   if (ext === '.pdf') {
     const dataBuffer = fs.readFileSync(filePath);
     try {
-      const pdfParserFn = typeof pdf === 'function' ? pdf : pdf.default;
-      if (typeof pdfParserFn !== 'function') {
-        throw new Error('pdf-parse function could not be resolved');
+      if (typeof pdf === 'function') {
+        const data = await pdf(dataBuffer);
+        return data.text;
+      } else if (pdf && typeof pdf.PDFParse === 'function') {
+        const parser = new pdf.PDFParse({ data: dataBuffer });
+        await parser.load();
+        const result = await parser.getText();
+        return result.text;
+      } else {
+        throw new Error('Neither default function nor PDFParse class was found in pdf-parse module');
       }
-      const data = await pdfParserFn(dataBuffer);
-      return data.text;
     } catch (error) {
       throw new Error(`Failed to parse PDF resume: ${error.message}`);
     }
