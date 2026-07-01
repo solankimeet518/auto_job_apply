@@ -2,13 +2,14 @@ import { parseResume } from './resumeParser.js';
 import { extractProfile } from './profileExtractor.js';
 import { config } from './config.js';
 import { saveToQAMemory, generateAnswer } from './queryEngine.js';
+import { startAutomationLoop } from './applyBot.js';
 import fs from 'fs';
 import path from 'path';
 
 const PORT = 3000;
 
 // Global state of the bot
-let botState = {
+export let botState = {
   status: 'idle', // 'idle' | 'running' | 'paused_input' | 'completed' | 'error'
   logs: [],
   pendingQuestions: [], // [{ id, text, jobUrl }]
