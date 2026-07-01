@@ -61,6 +61,52 @@ async function checkSecurityChallenges(page) {
 }
 
 /**
+ * Checks for the presence of Google reCAPTCHA, and pauses the bot until the user solves it.
+ */
+async function checkRecaptchaChallenge(page) {
+  let isPaused = false;
+  
+  while (true) {
+    if (botState.status === 'idle') break;
+
+    // Check for reCAPTCHA element containers or iframes
+    const hasRecaptcha = await page.evaluate(() => {
+      const selectors = [
+        '.g-recaptcha', 
+        'iframe[src*="recaptcha"]', 
+        'iframe[title*="recaptcha"]', 
+        '.recaptcha-checkbox'
+      ];
+      return selectors.some(s => document.querySelector(s) !== null);
+    }).catch(() => false);
+
+    if (hasRecaptcha) {
+      // Check if it's already solved (the hidden response field is filled with the token string)
+      const isSolved = await page.evaluate(() => {
+        const responseField = document.getElementById('g-recaptcha-response') || document.querySelector('[name="g-recaptcha-response"]');
+        return responseField && responseField.value && responseField.value.trim().length > 0;
+      }).catch(() => false);
+
+      if (!isSolved) {
+        if (!isPaused) {
+          logBotActivity('⚠️ Google reCAPTCHA challenge detected on submission step!');
+          logBotActivity('🔒 Bot is temporarily PAUSED. Please solve the reCAPTCHA manually in the browser window.');
+          isPaused = true;
+        }
+        await page.waitForTimeout(2500);
+      } else {
+        if (isPaused) {
+          logBotActivity('🔓 reCAPTCHA resolved! Resuming application submission.');
+        }
+        break;
+      }
+    } else {
+      break; // No reCAPTCHA present
+    }
+  }
+}
+
+/**
  * Executes a normal click using Playwright's native API.
  */
 async function humanClick(page, elementOrLocator) {
@@ -235,6 +281,9 @@ async function handleApplicationForm(page, jobUrl) {
 
     const submitBtn = await page.$('button:has-text("Submit application"), button:has-text("Submit your application"), button:has-text("Apply")');
     if (submitBtn) {
+      // Verify and resolve reCAPTCHA challenge if present on submission review page
+      await checkRecaptchaChallenge(page);
+
       logBotActivity('🎯 Final review step reached. Submitting application...');
       await humanClick(page, submitBtn);
       await page.waitForTimeout(4000);
