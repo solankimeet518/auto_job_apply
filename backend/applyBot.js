@@ -89,14 +89,14 @@ async function humanClick(page, elementOrLocator) {
   const startX = targetX + (Math.random() * 200 - 100);
   const startY = targetY + (Math.random() * 200 - 100);
 
-  const steps = 5;
+  const steps = 4; // Slightly reduced steps for faster mouse moves
   for (let i = 1; i <= steps; i++) {
     const t = i / steps;
     let x = startX + (targetX - startX) * t;
     let y = startY + (targetY - startY) * t;
 
     if (i > 0 && i < steps) {
-      const wave = Math.sin(t * Math.PI) * 15 * (Math.random() > 0.5 ? 1 : -1);
+      const wave = Math.sin(t * Math.PI) * 12 * (Math.random() > 0.5 ? 1 : -1);
       x += wave;
       y += wave * 0.5;
     }
@@ -105,16 +105,16 @@ async function humanClick(page, elementOrLocator) {
     y += (Math.random() * 2 - 1);
 
     await page.mouse.move(x, y).catch(() => {});
-    await page.waitForTimeout(40 + Math.random() * 40);
+    await page.waitForTimeout(30 + Math.random() * 30);
   }
 
   await page.mouse.move(targetX, targetY).catch(() => {});
-  await page.waitForTimeout(80 + Math.random() * 80);
+  await page.waitForTimeout(50 + Math.random() * 50);
 
   await page.mouse.down().catch(() => {});
-  await page.waitForTimeout(45 + Math.random() * 60);
+  await page.waitForTimeout(40 + Math.random() * 50);
   await page.mouse.up().catch(() => {});
-  await page.waitForTimeout(150);
+  await page.waitForTimeout(100);
 }
 
 /**
@@ -262,7 +262,7 @@ async function handleApplicationForm(page, jobUrl) {
     if (submitBtn) {
       logBotActivity('🎯 Final review step reached. Submitting application...');
       await humanClick(page, submitBtn);
-      await page.waitForTimeout(5000);
+      await page.waitForTimeout(4000);
       logBotActivity('✅ Application successfully submitted!');
       isDone = true;
       return true;
@@ -280,7 +280,7 @@ async function handleApplicationForm(page, jobUrl) {
         if (fs.existsSync(resumePath)) {
           logBotActivity('📤 Uploading resume.pdf...');
           await fileInput.setInputFiles(resumePath);
-          await page.waitForTimeout(2000);
+          await page.waitForTimeout(1500);
         } else {
           logBotActivity('⚠️ Warning: resume.pdf not found in project workspace. Skipping upload.');
         }
@@ -317,7 +317,7 @@ async function handleApplicationForm(page, jobUrl) {
 
         logBotActivity(`✍️ Filling field: "${label}" -> "${valueToFill}"`);
         await input.fill(valueToFill);
-        await page.waitForTimeout(500);
+        await page.waitForTimeout(300);
       }
     }
 
@@ -341,7 +341,7 @@ async function handleApplicationForm(page, jobUrl) {
           }, chosenOption);
 
           await select.selectOption(optionValue);
-          await page.waitForTimeout(500);
+          await page.waitForTimeout(300);
         }
       }
     }
@@ -392,7 +392,7 @@ async function handleApplicationForm(page, jobUrl) {
           const target = options.find(o => o.text === chosenText);
           if (target) {
             await humanClick(page, target.element);
-            await page.waitForTimeout(500);
+            await page.waitForTimeout(300);
           }
         }
       }
@@ -402,8 +402,8 @@ async function handleApplicationForm(page, jobUrl) {
     if (nextBtn) {
       logBotActivity('⏭️ Clicking continue...');
       await humanClick(page, nextBtn);
-      await page.waitForLoadState('networkidle').catch(() => {});
-      await page.waitForTimeout(1500);
+      await page.waitForLoadState('domcontentloaded').catch(() => {});
+      await page.waitForTimeout(600);
     } else {
       logBotActivity('⚠️ Navigation button not found. Assuming application form is stuck or complete.');
       isDone = true;
@@ -439,8 +439,8 @@ export async function startAutomationLoop() {
 
       logBotActivity(`🌐 Visiting Indeed India: https://in.indeed.com/`);
       await page.goto('https://in.indeed.com/');
-      await page.waitForLoadState('networkidle').catch(() => {});
-      await page.waitForTimeout(2000);
+      await page.waitForLoadState('domcontentloaded').catch(() => {});
+      await page.waitForTimeout(1000);
 
       await checkSecurityChallenges(page);
 
@@ -452,7 +452,7 @@ export async function startAutomationLoop() {
         await page.keyboard.press('Control+A');
         await page.keyboard.press('Backspace');
         await titleInput.fill(botState.targetJob);
-        await page.waitForTimeout(1500);
+        await page.waitForTimeout(1000);
         await page.keyboard.press('Escape');
       }
 
@@ -464,7 +464,7 @@ export async function startAutomationLoop() {
         await page.keyboard.press('Control+A');
         await page.keyboard.press('Backspace');
         await locInput.fill(location);
-        await page.waitForTimeout(1500);
+        await page.waitForTimeout(1000);
         await page.keyboard.press('Escape');
       }
 
@@ -473,8 +473,8 @@ export async function startAutomationLoop() {
       const searchBtn = await page.$('button[type="submit"], button:has-text("Find jobs")');
       if (searchBtn) {
         await humanClick(page, searchBtn);
-        await page.waitForLoadState('networkidle').catch(() => {});
-        await page.waitForTimeout(2000);
+        await page.waitForLoadState('domcontentloaded').catch(() => {});
+        await page.waitForTimeout(1000);
       }
 
       await checkSecurityChallenges(page);
@@ -486,7 +486,6 @@ export async function startAutomationLoop() {
         if (botState.status === 'idle') break;
         logBotActivity(`📄 Scanning search page ${pageNum} in "${location}"...`);
 
-        // Wait up to 15 seconds for left pane cards to render fully
         const leftPane = await page.waitForSelector('.jobsearch-LeftPane, #mosaic-provider-jobcards, #mosaic-jobResults, .jobsearch-ResultsList', { timeout: 15000 }).catch(() => null);
         if (!leftPane) {
           logBotActivity('⚠️ Search Left Pane not found (timed out waiting for elements). Skipping location...');
@@ -512,8 +511,8 @@ export async function startAutomationLoop() {
           
           try {
             await humanClick(page, item.element);
-            await page.waitForLoadState('networkidle').catch(() => {});
-            await page.waitForTimeout(1500);
+            await page.waitForLoadState('domcontentloaded').catch(() => {});
+            await page.waitForTimeout(600);
 
             await checkSecurityChallenges(page);
 
@@ -521,17 +520,7 @@ export async function startAutomationLoop() {
             const hasRightPane = await page.locator(rightPaneSelector).count() > 0;
             const detailLocator = hasRightPane ? page.locator(rightPaneSelector) : page;
 
-            const jobTitle = await detailLocator.locator('h1, .jobsearch-JobInfoHeader-title').first().innerText().catch(() => 'Unknown Title');
-            const jobDescription = await detailLocator.locator('#jobDescriptionText').first().innerText().catch(() => '');
-
-            logBotActivity(`🧠 Analyzing suitability for: "${jobTitle}"...`);
-            const suitability = await isJobSuitable(jobTitle, jobDescription, profileData);
-            if (!suitability.eligible) {
-              logBotActivity(`❌ Skipped: Job is not suitable. Reason: ${suitability.reason}`);
-              continue;
-            }
-            logBotActivity(`✅ Job matches profile! Reason: ${suitability.reason}`);
-
+            // FIRST: Check if the "Apply with Indeed" / "Apply now" button exists and is NOT external
             const applyBtnLocator = detailLocator.locator('button.ia-IndeedApplyButton, button:has-text("Apply now"), button:has-text("Apply with Indeed"), .jobsearch-IndeedApplyButton-button').first();
             const externalBtnLocator = detailLocator.locator('button:has-text("Apply on company site"), button:has-text("Apply on company website"), a:has-text("Apply on company site"), a:has-text("Apply on company website")').first();
 
@@ -546,6 +535,18 @@ export async function startAutomationLoop() {
               logBotActivity('🔍 "Apply with Indeed" or "Apply now" button not found. Skipping...');
               continue;
             }
+
+            // ONLY IF IT IS AN EASY APPLY JOB, we load description and evaluate suitability!
+            const jobTitle = await detailLocator.locator('h1, .jobsearch-JobInfoHeader-title').first().innerText().catch(() => 'Unknown Title');
+            const jobDescription = await detailLocator.locator('#jobDescriptionText').first().innerText().catch(() => '');
+
+            logBotActivity(`🧠 Analyzing suitability for: "${jobTitle}"...`);
+            const suitability = await isJobSuitable(jobTitle, jobDescription, profileData);
+            if (!suitability.eligible) {
+              logBotActivity(`❌ Skipped: Job is not suitable. Reason: ${suitability.reason}`);
+              continue;
+            }
+            logBotActivity(`✅ Job matches profile! Reason: ${suitability.reason}`);
 
             logBotActivity('🚀 "Apply with Indeed" found! Triggering new application tab...');
             
@@ -583,9 +584,9 @@ export async function startAutomationLoop() {
         if (nextLink) {
           logBotActivity(`⏭️ Clicking next page link (Page ${pageNum} -> ${pageNum + 1})...`);
           await humanClick(page, nextLink);
-          await page.waitForLoadState('networkidle').catch(() => {});
+          await page.waitForLoadState('domcontentloaded').catch(() => {});
           pageNum++;
-          await page.waitForTimeout(2000);
+          await page.waitForTimeout(1500);
         } else {
           logBotActivity('🏁 No more pages available. Finished pagination.');
           break;
