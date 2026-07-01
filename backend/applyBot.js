@@ -175,7 +175,6 @@ async function getFieldLabel(page, inputElement) {
  */
 async function handleApplicationForm(page, jobUrl) {
   let isDone = false;
-  let pageTitle = '';
 
   const profilePath = path.join(process.cwd(), 'profile.json');
   const profileData = fs.existsSync(profilePath) ? JSON.parse(fs.readFileSync(profilePath, 'utf8')) : {};
@@ -187,12 +186,12 @@ async function handleApplicationForm(page, jobUrl) {
       return false;
     }
 
-    // Check if we reached the final submit page
+    // Check if we reached the final submit page (review section)
     const submitBtn = await page.$('button:has-text("Submit application"), button:has-text("Submit your application"), button:has-text("Apply")');
     if (submitBtn) {
       logBotActivity('🎯 Final review step reached. Submitting application...');
       await submitBtn.click();
-      await page.waitForTimeout(4000); // Wait for submission success
+      await page.waitForTimeout(5000); // Wait for submission success popup
       logBotActivity('✅ Application successfully submitted!');
       isDone = true;
       return true;
@@ -286,7 +285,6 @@ async function handleApplicationForm(page, jobUrl) {
     }
 
     // 4. Handle Radio Buttons
-    // Group radios by name attribute
     const radioGroups = {};
     for (const radio of radioInputs) {
       const name = await radio.getAttribute('name');
@@ -298,7 +296,6 @@ async function handleApplicationForm(page, jobUrl) {
 
     for (const groupName of Object.keys(radioGroups)) {
       const group = radioGroups[groupName];
-      // Check if group is visible and none is already checked
       let isVisible = false;
       let alreadyChecked = false;
       for (const radio of group) {
@@ -311,11 +308,9 @@ async function handleApplicationForm(page, jobUrl) {
       }
 
       if (isVisible && !alreadyChecked) {
-        // Find question label for the radio group
         const firstRadio = group[0];
         const label = await getFieldLabel(page, firstRadio);
         
-        // Extract options
         const options = [];
         for (const radio of group) {
           const id = await radio.getAttribute('id');
@@ -347,7 +342,7 @@ async function handleApplicationForm(page, jobUrl) {
     if (nextBtn) {
       logBotActivity('⏭️ Clicking continue...');
       await nextBtn.click();
-      await page.waitForTimeout(3000); // Wait for transition
+      await page.waitForTimeout(4000); // Wait for transition
     } else {
       logBotActivity('⚠️ Navigation button not found. Assuming application form is stuck or complete.');
       isDone = true;
@@ -366,50 +361,95 @@ export async function startAutomationLoop() {
     context = launcher.context;
     page = launcher.page;
 
-    logBotActivity(`🔍 Target job: "${botState.targetJob}"`);
-    logBotActivity(`📍 Locations list: ${JSON.stringify(botState.targetLocations)}`);
-
     const profilePath = path.join(process.cwd(), 'profile.json');
     const profileData = fs.existsSync(profilePath) ? JSON.parse(fs.readFileSync(profilePath, 'utf8')) : {};
+
+    logBotActivity(`🔍 Target job: "${botState.targetJob}"`);
+    logBotActivity(`📍 Locations list: ${JSON.stringify(botState.targetLocations)}`);
 
     for (const location of botState.targetLocations) {
       if (botState.status === 'idle') break;
 
-      logBotActivity(`🌐 Searching Indeed for jobs in "${location}" (Filtering for Easy Apply)...`);
-      const searchUrl = `https://www.indeed.com/jobs?q=${encodeURIComponent(botState.targetJob)}&l=${encodeURIComponent(location)}&sc=0kf%3Aattr%28FCAPO%29%3B`;
-      await page.goto(searchUrl);
-      await page.waitForTimeout(4000); // Wait for job cards loading
+      logBotActivity(`🌐 Visiting Indeed India: https://in.indeed.com/`);
+      await page.goto('https://in.indeed.com/');
+      await page.waitForTimeout(4000);
+
+      // 1. Search Job Title
+      logBotActivity(`✍️ Searching job title: "${botState.targetJob}"...`);
+      const titleInput = await page.$('input[id="text-input-what"], input[placeholder*="Job title"], input[aria-label*="job title"]');
+      if (titleInput) {
+        await titleInput.click();
+        await page.keyboard.press('Control+A');
+        await page.keyboard.press('Backspace');
+        await titleInput.fill(botState.targetJob);
+        await page.waitForTimeout(1500);
+        await page.keyboard.press('Escape'); // Close autocomplete suggestions popup
+      }
+
+      // 2. Search Location
+      logBotActivity(`✍️ Searching location: "${location}"...`);
+      const locInput = await page.$('input[id="text-input-where"], input[placeholder*="Location"], input[aria-label*="location"]');
+      if (locInput) {
+        await locInput.click();
+        await page.keyboard.press('Control+A');
+        await page.keyboard.press('Backspace');
+        await locInput.fill(location);
+        await page.waitForTimeout(1500);
+        await page.keyboard.press('Escape');
+      }
+
+      // 3. Click "Find jobs"
+      logBotActivity('🔍 Clicking "Find jobs" button...');
+      const searchBtn = await page.$('button[type="submit"], button:has-text("Find jobs")');
+      if (searchBtn) {
+        await searchBtn.click();
+        await page.waitForTimeout(6000); // Wait for job split panes to load
+      }
 
       let pageNum = 1;
-      const maxPages = 5; // Safety limit to avoid infinite loops
+      const maxPages = 5; // Search up to 5 pages
 
       while (pageNum <= maxPages) {
         if (botState.status === 'idle') break;
         logBotActivity(`📄 Scanning search page ${pageNum} in "${location}"...`);
 
-        // Extract Job Keys
-        const jobKeys = await page.$$eval('a[data-jk]', links => {
-          return links
-            .map(a => a.getAttribute('data-jk'))
-            .filter(Boolean);
-        });
+        // Check if Left Pane exists
+        const leftPane = await page.$('.jobsearch-LeftPane, #mosaic-provider-jobcards');
+        if (!leftPane) {
+          logBotActivity('⚠️ Search Left Pane not found. Skipping location...');
+          break;
+        }
 
-        const uniqueKeys = [...new Set(jobKeys)];
-        logBotActivity(`📋 Found ${uniqueKeys.length} potential job listings on page ${pageNum}`);
+        // Extract job links inside the Left Pane
+        const jobElements = await leftPane.$$('a[data-jk]');
+        const uniqueKeys = [];
+        for (const el of jobElements) {
+          const jk = await el.getAttribute('data-jk');
+          if (jk && !uniqueKeys.some(item => item.jk === jk)) {
+            uniqueKeys.push({ element: el, jk });
+          }
+        }
 
-        for (const jk of uniqueKeys) {
+        logBotActivity(`📋 Found ${uniqueKeys.length} potential job listings in Left Pane (Page ${pageNum})`);
+
+        for (const item of uniqueKeys) {
           if (botState.status === 'idle') break;
 
-          const jobUrl = `https://www.indeed.com/viewjob?jk=${jk}`;
-          logBotActivity(`🔗 Examining job: ${jobUrl}`);
+          const jobUrl = `https://in.indeed.com/viewjob?jk=${item.jk}`;
+          logBotActivity(`👉 Clicking card for Job ID: ${item.jk}...`);
           
           try {
-            await page.goto(jobUrl);
+            // Click Left Pane card to load detail on the Right Pane
+            await item.element.click();
             await page.waitForTimeout(3000);
 
-            // Extract job details for suitability analysis
-            const jobTitle = await page.locator('h1, .jobsearch-JobInfoHeader-title').first().innerText().catch(() => 'Unknown Title');
-            const jobDescription = await page.locator('#jobDescriptionText').innerText().catch(() => '');
+            // Access Right Pane elements
+            const rightPane = await page.$('#vjs-container, .jobsearch-RightPane, #jobsearch-ViewjobPaneWrapper');
+            const detailContext = rightPane || page;
+
+            // Extract job title and description from Right Pane for suitability analysis
+            const jobTitle = await detailContext.locator('h1, .jobsearch-JobInfoHeader-title').first().innerText().catch(() => 'Unknown Title');
+            const jobDescription = await detailContext.locator('#jobDescriptionText').innerText().catch(() => '');
 
             logBotActivity(`🧠 Analyzing suitability for: "${jobTitle}"...`);
             const suitability = await isJobSuitable(jobTitle, jobDescription, profileData);
@@ -419,9 +459,9 @@ export async function startAutomationLoop() {
             }
             logBotActivity(`✅ Job matches profile! Reason: ${suitability.reason}`);
 
-            // Check if "Apply now" (Easy Apply) or "Apply with Indeed" exists
-            const applyBtn = await page.$('button.ia-IndeedApplyButton, button:has-text("Apply now"), button:has-text("Apply with Indeed"), .jobsearch-IndeedApplyButton-button');
-            const externalBtn = await page.$('button:has-text("Apply on company site"), button:has-text("Apply on company website"), a:has-text("Apply on company site"), a:has-text("Apply on company website")');
+            // Find "Apply with Indeed" / "Apply now" on Right Pane
+            const applyBtn = await detailContext.$('button.ia-IndeedApplyButton, button:has-text("Apply now"), button:has-text("Apply with Indeed"), .jobsearch-IndeedApplyButton-button');
+            const externalBtn = await detailContext.$('button:has-text("Apply on company site"), button:has-text("Apply on company website"), a:has-text("Apply on company site"), a:has-text("Apply on company website")');
 
             if (externalBtn) {
               logBotActivity('➡️ External job posting (requires redirect). Skipping...');
@@ -433,27 +473,48 @@ export async function startAutomationLoop() {
               continue;
             }
 
-            logBotActivity('🚀 "Apply with Indeed" found! Initializing indeed application flow...');
-            await applyBtn.click();
-            await page.waitForTimeout(4000); // Wait for apply overlay loading
+            logBotActivity('🚀 "Apply with Indeed" found! Triggering new application tab...');
+            
+            // Wait for new tab popup when button is clicked
+            let applicationPage = page;
+            let isNewTab = false;
 
-            // Handle form filling steps
-            const success = await handleApplicationForm(page, jobUrl);
+            try {
+              const popupPromise = context.waitForEvent('page', { timeout: 5000 });
+              await applyBtn.click();
+              const popup = await popupPromise;
+              applicationPage = popup;
+              isNewTab = true;
+              logBotActivity('📥 Application opened in new tab/popup. Attaching form filler...');
+            } catch (err) {
+              logBotActivity('ℹ️ No new tab opened. Running form filler in main window or modal.');
+            }
+
+            await applicationPage.waitForLoadState().catch(() => {});
+
+            // Handle multi-step questionnaire
+            const success = await handleApplicationForm(applicationPage, jobUrl);
             if (success) {
-              logBotActivity(`🎉 Successfully completed application for job: ${jk}`);
+              logBotActivity(`🎉 Successfully completed application for job: ${item.jk}`);
+            }
+
+            // Close the new tab if it was opened
+            if (isNewTab) {
+              await applicationPage.close();
+              logBotActivity('🔒 Application tab closed. Returning to search pane.');
             }
           } catch (jobErr) {
-            logBotActivity(`❌ Error processing job ${jk}: ${jobErr.message}`);
+            logBotActivity(`❌ Error processing job ${item.jk}: ${jobErr.message}`);
           }
         }
 
-        // Navigate to Next Pagination Page
+        // Navigate to Next Pagination Page on Left Pane
         const nextLink = await page.$('a[aria-label="Next Page"], a[data-testid="pagination-page-next"], button[aria-label="Next Page"]');
         if (nextLink) {
           logBotActivity(`⏭️ Clicking next page link (Page ${pageNum} -> ${pageNum + 1})...`);
           await nextLink.click();
           pageNum++;
-          await page.waitForTimeout(5000); // Wait for page transition
+          await page.waitForTimeout(5000); // Wait for page loading transition
         } else {
           logBotActivity('🏁 No more pages available. Finished pagination.');
           break;
