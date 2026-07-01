@@ -410,7 +410,7 @@ async function handleApplicationForm(page, jobUrl) {
       }
     }
 
-    const nextBtn = await page.$('button:has-text("Continue"), button:has-text("Next"), .ia-continueButton, [data-testid="continue-button"]');
+    const nextBtn = await page.$('button:has-text("Continue"), button:has-text("Next"), [data-testid="continue-button"]');
     if (nextBtn) {
       logBotActivity('⏭️ Clicking continue...');
       await humanClick(page, nextBtn);
