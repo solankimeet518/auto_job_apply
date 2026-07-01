@@ -520,7 +520,8 @@ export async function startAutomationLoop() {
           
           try {
             await humanClick(page, item.element);
-            await page.waitForLoadState('domcontentloaded').catch(() => {});
+            // Wait for network requests loading the right-hand details pane to finish
+            await page.waitForLoadState('networkidle', { timeout: 6000 }).catch(() => {});
             await page.waitForTimeout(600);
 
             await checkSecurityChallenges(page);
