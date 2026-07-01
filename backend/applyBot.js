@@ -373,10 +373,31 @@ async function handleApplicationForm(page, jobUrl) {
       }
     }
 
-    const nextBtn = await page.$('button:has-text("Continue")');
-    logBotActivity(JSON.stringify(nextBtn));
+    // Find all continue buttons and select the active, visible one
+    const nextBtnLoc = page.locator('button:has-text("Continue")');
+    const count = await nextBtnLoc.count();
+    let nextBtn = null;
+    for (let i = 0; i < count; i++) {
+      const el = nextBtnLoc.nth(i);
+      const isVisible = await el.isVisible().catch(() => false);
+      if (isVisible) {
+        nextBtn = await el.elementHandle().catch(() => null);
+        const isDisabled = await el.evaluate(node => node.disabled || node.getAttribute('aria-disabled') === 'true').catch(() => true);
+        if (!isDisabled) {
+          break; // Prioritize the enabled active continue button
+        }
+      }
+    }
+
     if (nextBtn) {
-      logBotActivity('⏭️ Clicking continue...');
+      const btnInfo = await nextBtn.evaluate(el => ({
+        outerHTML: el.outerHTML,
+        tagName: el.tagName,
+        visible: el.offsetWidth > 0 && el.offsetHeight > 0,
+        disabled: el.disabled || el.getAttribute('aria-disabled') === 'true'
+      })).catch(() => null);
+      
+      logBotActivity(`⏭️ Clicking continue (button details: ${JSON.stringify(btnInfo)})...`);
       await humanClick(page, nextBtn);
       // Wait for next section network requests to finish, then wait 1 second for DOM reaction
       await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => { });
