@@ -13,6 +13,11 @@ export default function ProfileEditor({ initialProfile, onSaveComplete, onReuplo
     }
     prof.firstName = prof.firstName || '';
     prof.lastName = prof.lastName || '';
+    prof.address = prof.address || '';
+    prof.city = prof.city || '';
+    prof.state = prof.state || '';
+    prof.pincode = prof.pincode || '';
+    prof.country = prof.country || '';
     prof.targetLocations = prof.targetLocations || (prof.targetLocation ? [prof.targetLocation] : []);
     prof.jobTypes = prof.jobTypes || [];
     prof.workModes = prof.workModes || [];
@@ -429,13 +434,54 @@ export default function ProfileEditor({ initialProfile, onSaveComplete, onReuplo
                   style={{ width: '100%', padding: '12px 16px', borderRadius: '10px', background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
                 />
               </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: '600', textTransform: 'uppercase' }}>Current Location (City, State/Country)</label>
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: '600', textTransform: 'uppercase' }}>Street Address</label>
                 <input
                   type="text"
-                  value={profile.location || ''}
-                  onChange={(e) => handleBasicChange('location', e.target.value)}
+                  value={profile.address || ''}
+                  onChange={(e) => handleBasicChange('address', e.target.value)}
                   style={{ width: '100%', padding: '12px 16px', borderRadius: '10px', background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
+                  placeholder="e.g. 123 Main St, Apt 4B"
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: '600', textTransform: 'uppercase' }}>City</label>
+                <input
+                  type="text"
+                  value={profile.city || ''}
+                  onChange={(e) => handleBasicChange('city', e.target.value)}
+                  style={{ width: '100%', padding: '12px 16px', borderRadius: '10px', background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
+                  placeholder="e.g. Bengaluru"
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: '600', textTransform: 'uppercase' }}>State / Province</label>
+                <input
+                  type="text"
+                  value={profile.state || ''}
+                  onChange={(e) => handleBasicChange('state', e.target.value)}
+                  style={{ width: '100%', padding: '12px 16px', borderRadius: '10px', background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
+                  placeholder="e.g. Karnataka"
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: '600', textTransform: 'uppercase' }}>Pin Code / Postal Code</label>
+                <input
+                  type="text"
+                  value={profile.pincode || ''}
+                  onChange={(e) => handleBasicChange('pincode', e.target.value)}
+                  style={{ width: '100%', padding: '12px 16px', borderRadius: '10px', background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
+                  placeholder="e.g. 560001"
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: '600', textTransform: 'uppercase' }}>Country</label>
+                <input
+                  type="text"
+                  value={profile.country || ''}
+                  onChange={(e) => handleBasicChange('country', e.target.value)}
+                  style={{ width: '100%', padding: '12px 16px', borderRadius: '10px', background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
+                  placeholder="e.g. India"
                 />
               </div>
               <div>
