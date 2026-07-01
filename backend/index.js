@@ -1,6 +1,7 @@
 import { parseResume } from './resumeParser.js';
 import { extractProfile } from './profileExtractor.js';
 import { config } from './config.js';
+import { saveToQAMemory, generateAnswer } from './queryEngine.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -162,6 +163,9 @@ const server = Bun.serve({
         // Cache the answer in session memory
         botState.answers[question.text] = answer;
         
+        // Persistently cache in qa_memory.json
+        saveToQAMemory(question.text, answer);
+        
         // Remove from pending list
         botState.pendingQuestions.splice(qIndex, 1);
         
@@ -173,6 +177,17 @@ const server = Bun.serve({
         }
 
         return getCorsResponse({ status: 'success' });
+      }
+
+      // POST /api/query-test -> Test answering engine
+      if (url.pathname === '/api/query-test' && req.method === 'POST') {
+        const { question } = await req.json();
+        if (!question) {
+          return getCorsResponse({ error: 'Question text is required' }, 400);
+        }
+        logBotActivity(`🔍 Testing query engine for: "${question}"`);
+        const result = await generateAnswer(question);
+        return getCorsResponse(result);
       }
 
       return getCorsResponse({ error: 'Endpoint Not Found' }, 404);
