@@ -403,7 +403,7 @@ async function handleApplicationForm(page, jobUrl) {
       }
     }
 
-    const nextBtn = await page.$('button:has-text("Continue"), button:has-text("Next"), button.ia-continueButton');
+    const nextBtn = await page.$('button:has-text("Continue"), button:has-text("Next"), button.ia-continueButton, button[type="submit"]');
     if (nextBtn) {
       logBotActivity('⏭️ Clicking continue...');
       await humanClick(page, nextBtn);
@@ -457,7 +457,7 @@ export async function startAutomationLoop() {
         await humanClick(page, titleInput);
         await page.keyboard.press('Control+A');
         await page.keyboard.press('Backspace');
-        await titleInput.fill(botState.targetJob);
+        await titleInput.type(botState.targetJob, { delay: 100 });
         await page.waitForTimeout(1000);
         await page.keyboard.press('Escape');
       }
@@ -469,7 +469,7 @@ export async function startAutomationLoop() {
         await humanClick(page, locInput);
         await page.keyboard.press('Control+A');
         await page.keyboard.press('Backspace');
-        await locInput.fill(location);
+        await locInput.type(location, { delay: 100 });
         await page.waitForTimeout(1000);
         await page.keyboard.press('Escape');
       }
