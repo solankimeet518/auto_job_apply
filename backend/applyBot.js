@@ -61,7 +61,7 @@ async function checkSecurityChallenges(page) {
 }
 
 /**
- * Simulates human-like mouse movement in a zig-zag curve to an element and clicks it.
+ * Executes a normal click using Playwright's native API.
  */
 async function humanClick(page, elementOrLocator) {
   try {
@@ -78,48 +78,12 @@ async function humanClick(page, elementOrLocator) {
 
     if (!element) return;
 
-    // Ensure element is scrolled into view first
+    // Scroll element into view and trigger Playwright's native click
     await element.scrollIntoViewIfNeeded().catch(() => {});
-
-    const box = await element.boundingBox().catch(() => null);
-    if (!box) {
-      await element.click().catch(() => {});
-      return;
-    }
-
-    const targetX = box.x + box.width / 2 + (Math.random() * 4 - 2);
-    const targetY = box.y + box.height / 2 + (Math.random() * 4 - 2);
-
-    const startX = targetX + (Math.random() * 200 - 100);
-    const startY = targetY + (Math.random() * 200 - 100);
-
-    const steps = 4;
-    for (let i = 1; i <= steps; i++) {
-      const t = i / steps;
-      let x = startX + (targetX - startX) * t;
-      let y = startY + (targetY - startY) * t;
-
-      if (i > 0 && i < steps) {
-        const wave = Math.sin(t * Math.PI) * 12 * (Math.random() > 0.5 ? 1 : -1);
-        x += wave;
-        y += wave * 0.5;
-      }
-
-      x += (Math.random() * 2 - 1);
-      y += (Math.random() * 2 - 1);
-
-      await page.mouse.move(x, y).catch(() => {});
-      await page.waitForTimeout(30 + Math.random() * 30);
-    }
-
-    await page.mouse.move(targetX, targetY).catch(() => {});
-    await page.waitForTimeout(50 + Math.random() * 50);
-
-    // Trigger Playwright's native click on the element to ensure React handlers fire
     await element.click().catch(() => {});
     await page.waitForTimeout(100);
   } catch (clickErr) {
-    console.log('Stealth human click bypassed due to DOM detachment:', clickErr.message);
+    console.log('Click bypassed or failed due to DOM status:', clickErr.message);
   }
 }
 
