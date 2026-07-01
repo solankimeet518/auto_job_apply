@@ -7,3 +7,4 @@ pending_jobs.json
 *.log
 backend/user_data/
 backend/test_browser.js
+backend/login_indeed.js
