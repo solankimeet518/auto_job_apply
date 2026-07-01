@@ -115,9 +115,8 @@ async function humanClick(page, elementOrLocator) {
     await page.mouse.move(targetX, targetY).catch(() => {});
     await page.waitForTimeout(50 + Math.random() * 50);
 
-    await page.mouse.down().catch(() => {});
-    await page.waitForTimeout(40 + Math.random() * 50);
-    await page.mouse.up().catch(() => {});
+    // Trigger Playwright's native click on the element to ensure React handlers fire
+    await element.click().catch(() => {});
     await page.waitForTimeout(100);
   } catch (clickErr) {
     console.log('Stealth human click bypassed due to DOM detachment:', clickErr.message);
