@@ -318,8 +318,8 @@ export async function startAutomationLoop() {
     for (const location of botState.targetLocations) {
       if (botState.status === 'idle') break;
 
-      logBotActivity(`🌐 Searching Indeed for jobs in "${location}"...`);
-      const searchUrl = `https://www.indeed.com/jobs?q=${encodeURIComponent(botState.targetJob)}&l=${encodeURIComponent(location)}`;
+      logBotActivity(`🌐 Searching Indeed for jobs in "${location}" (Filtering for Easy Apply)...`);
+      const searchUrl = `https://www.indeed.com/jobs?q=${encodeURIComponent(botState.targetJob)}&l=${encodeURIComponent(location)}&sc=0kf%3Aattr%28FCAPO%29%3B`;
       await page.goto(searchUrl);
       await page.waitForTimeout(4000); // Wait for job cards loading
 
