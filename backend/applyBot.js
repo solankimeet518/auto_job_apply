@@ -447,12 +447,13 @@ export async function startAutomationLoop() {
             await page.waitForTimeout(1500); // Wait for details to load on Right Pane
 
             // Access Right Pane elements
-            const rightPane = await page.$('#vjs-container, .jobsearch-RightPane, #jobsearch-ViewjobPaneWrapper');
-            const detailContext = rightPane || page;
+            const rightPaneSelector = '#vjs-container, .jobsearch-RightPane, #jobsearch-ViewjobPaneWrapper';
+            const hasRightPane = await page.locator(rightPaneSelector).count() > 0;
+            const detailLocator = hasRightPane ? page.locator(rightPaneSelector) : page;
 
             // Extract job title and description from Right Pane for suitability analysis
-            const jobTitle = await detailContext.locator('h1, .jobsearch-JobInfoHeader-title').first().innerText().catch(() => 'Unknown Title');
-            const jobDescription = await detailContext.locator('#jobDescriptionText').innerText().catch(() => '');
+            const jobTitle = await detailLocator.locator('h1, .jobsearch-JobInfoHeader-title').first().innerText().catch(() => 'Unknown Title');
+            const jobDescription = await detailLocator.locator('#jobDescriptionText').first().innerText().catch(() => '');
 
             logBotActivity(`🧠 Analyzing suitability for: "${jobTitle}"...`);
             const suitability = await isJobSuitable(jobTitle, jobDescription, profileData);
@@ -463,15 +464,17 @@ export async function startAutomationLoop() {
             logBotActivity(`✅ Job matches profile! Reason: ${suitability.reason}`);
 
             // Find "Apply with Indeed" / "Apply now" on Right Pane
-            const applyBtn = await detailContext.$('button.ia-IndeedApplyButton, button:has-text("Apply now"), button:has-text("Apply with Indeed"), .jobsearch-IndeedApplyButton-button');
-            const externalBtn = await detailContext.$('button:has-text("Apply on company site"), button:has-text("Apply on company website"), a:has-text("Apply on company site"), a:has-text("Apply on company website")');
+            const applyBtnLocator = detailLocator.locator('button.ia-IndeedApplyButton, button:has-text("Apply now"), button:has-text("Apply with Indeed"), .jobsearch-IndeedApplyButton-button').first();
+            const externalBtnLocator = detailLocator.locator('button:has-text("Apply on company site"), button:has-text("Apply on company website"), a:has-text("Apply on company site"), a:has-text("Apply on company website")').first();
 
-            if (externalBtn) {
+            const hasExternal = (await externalBtnLocator.count() > 0) && (await externalBtnLocator.isVisible().catch(() => false));
+            if (hasExternal) {
               logBotActivity('➡️ External job posting (requires redirect). Skipping...');
               continue;
             }
 
-            if (!applyBtn) {
+            const hasApply = (await applyBtnLocator.count() > 0) && (await applyBtnLocator.isVisible().catch(() => false));
+            if (!hasApply) {
               logBotActivity('🔍 "Apply with Indeed" or "Apply now" button not found. Skipping...');
               continue;
             }
@@ -484,7 +487,7 @@ export async function startAutomationLoop() {
 
             try {
               const popupPromise = context.waitForEvent('page', { timeout: 5000 });
-              await applyBtn.click();
+              await applyBtnLocator.click();
               const popup = await popupPromise;
               applicationPage = popup;
               isNewTab = true;
