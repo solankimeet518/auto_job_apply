@@ -70,10 +70,10 @@ export const api = {
   /**
    * Trigger Indeed job search and apply process.
    */
-  async startBot(targetJob, targetLocation) {
+  async startBot(targetJob, targetLocations, jobTypes, workModes) {
     return apiFetch('/api/start', {
       method: 'POST',
-      body: JSON.stringify({ targetJob, targetLocation }),
+      body: JSON.stringify({ targetJob, targetLocations, jobTypes, workModes }),
     });
   },
 
