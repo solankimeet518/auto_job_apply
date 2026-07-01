@@ -6,33 +6,29 @@ import { config } from "./config.js";
 import path from 'path';
 import fs from 'fs';
 
+// Global concurrency lock to prevent multiple loop instances from running simultaneously
+let isLoopActive = false;
+
 /**
  * Busy-waits and pauses the bot thread, prompting the user in the React UI
  * for clarification. Returns the user's submitted answer.
- * @param {string} questionText - Raw question text.
- * @param {string} jobUrl - URL of the job page.
- * @returns {Promise<string>} - User-provided answer.
  */
 async function askUserAndWait(questionText, jobUrl) {
   const questionId = Math.random().toString(36).substring(2, 9);
   
-  // 1. Queue question in global state
   botState.pendingQuestions.push({
     id: questionId,
     text: questionText,
     jobUrl: jobUrl
   });
 
-  // 2. Set status to paused_input
   botState.status = 'paused_input';
   logBotActivity(`⚠️ PAUSED: Question requires your input: "${questionText}"`);
 
-  // 3. Busy-wait/poll until user submits answer in React
   while (botState.status === 'paused_input') {
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
 
-  // 4. Retrieve answer
   const answer = botState.answers[questionText] || '';
   return answer;
 }
@@ -66,14 +62,12 @@ async function checkSecurityChallenges(page) {
 
 /**
  * Simulates human-like mouse movement in a zig-zag curve to an element and clicks it.
- * Overcomes behavioral bot triggers by adding jitter, curves, and click hold time.
  */
 async function humanClick(page, elementOrLocator) {
   let element;
   if (typeof elementOrLocator === 'string') {
     element = await page.$(elementOrLocator);
   } else {
-    // If it's a Playwright Locator, extract its first element handle
     if (elementOrLocator.elementHandle) {
       element = await elementOrLocator.elementHandle().catch(() => null);
     } else {
@@ -85,48 +79,40 @@ async function humanClick(page, elementOrLocator) {
 
   const box = await element.boundingBox();
   if (!box) {
-    // Fallback to normal click if element doesn't have a bounding box (e.g. inline layouts)
     await element.click();
     return;
   }
 
-  // Calculate target coordinates (center of the bounding box with slight random offset)
   const targetX = box.x + box.width / 2 + (Math.random() * 4 - 2);
   const targetY = box.y + box.height / 2 + (Math.random() * 4 - 2);
 
-  // Start coordinates: use a random starting coordinate on screen offset from target
   const startX = targetX + (Math.random() * 200 - 100);
   const startY = targetY + (Math.random() * 200 - 100);
 
-  // Generate intermediate zig-zag steps
   const steps = 5;
   for (let i = 1; i <= steps; i++) {
     const t = i / steps;
     let x = startX + (targetX - startX) * t;
     let y = startY + (targetY - startY) * t;
 
-    // Add zig-zag/curve offset (perpendicular wave) in the middle steps
     if (i > 0 && i < steps) {
       const wave = Math.sin(t * Math.PI) * 15 * (Math.random() > 0.5 ? 1 : -1);
       x += wave;
       y += wave * 0.5;
     }
 
-    // Add mouse tremor jitter
     x += (Math.random() * 2 - 1);
     y += (Math.random() * 2 - 1);
 
     await page.mouse.move(x, y).catch(() => {});
-    await page.waitForTimeout(40 + Math.random() * 40); // Human reaction delay
+    await page.waitForTimeout(40 + Math.random() * 40);
   }
 
-  // Final move exactly to target
   await page.mouse.move(targetX, targetY).catch(() => {});
   await page.waitForTimeout(80 + Math.random() * 80);
 
-  // Human click: mouse down, hold, mouse up
   await page.mouse.down().catch(() => {});
-  await page.waitForTimeout(45 + Math.random() * 60); // Click hold time
+  await page.waitForTimeout(45 + Math.random() * 60);
   await page.mouse.up().catch(() => {});
   await page.waitForTimeout(150);
 }
@@ -270,15 +256,13 @@ async function handleApplicationForm(page, jobUrl) {
       return false;
     }
 
-    // Safety check for security challenges inside application form
     await checkSecurityChallenges(page);
 
-    // Check if we reached the final submit page (review section)
     const submitBtn = await page.$('button:has-text("Submit application"), button:has-text("Submit your application"), button:has-text("Apply")');
     if (submitBtn) {
       logBotActivity('🎯 Final review step reached. Submitting application...');
       await humanClick(page, submitBtn);
-      await page.waitForTimeout(5000); // Wait for submission success popup
+      await page.waitForTimeout(5000);
       logBotActivity('✅ Application successfully submitted!');
       isDone = true;
       return true;
@@ -289,7 +273,6 @@ async function handleApplicationForm(page, jobUrl) {
     const radioInputs = await page.$$('input[type="radio"]');
     const fileInputs = await page.$$('input[type="file"]');
 
-    // 1. Handle File Uploads (Resume)
     for (const fileInput of fileInputs) {
       const isVisible = await fileInput.evaluate(el => el.offsetWidth > 0 && el.offsetHeight > 0);
       if (isVisible) {
@@ -304,7 +287,6 @@ async function handleApplicationForm(page, jobUrl) {
       }
     }
 
-    // 2. Handle Text and Number inputs
     for (const input of textInputs) {
       const isVisible = await input.evaluate(el => el.offsetWidth > 0 && el.offsetHeight > 0 && !el.disabled && !el.readOnly);
       if (isVisible) {
@@ -339,7 +321,6 @@ async function handleApplicationForm(page, jobUrl) {
       }
     }
 
-    // 3. Handle Select Dropdowns
     for (const select of selectInputs) {
       const isVisible = await select.evaluate(el => el.offsetWidth > 0 && el.offsetHeight > 0 && !el.disabled);
       if (isVisible) {
@@ -365,7 +346,6 @@ async function handleApplicationForm(page, jobUrl) {
       }
     }
 
-    // 4. Handle Radio Buttons
     const radioGroups = {};
     for (const radio of radioInputs) {
       const name = await radio.getAttribute('name');
@@ -418,13 +398,12 @@ async function handleApplicationForm(page, jobUrl) {
       }
     }
 
-    // 5. Navigate to Next Step
     const nextBtn = await page.$('button:has-text("Continue"), button:has-text("Next"), button.ia-continueButton');
     if (nextBtn) {
       logBotActivity('⏭️ Clicking continue...');
       await humanClick(page, nextBtn);
       await page.waitForLoadState('networkidle').catch(() => {});
-      await page.waitForTimeout(1500); // Wait for DOM reaction
+      await page.waitForTimeout(1500);
     } else {
       logBotActivity('⚠️ Navigation button not found. Assuming application form is stuck or complete.');
       isDone = true;
@@ -437,6 +416,12 @@ async function handleApplicationForm(page, jobUrl) {
  * Main loop running in the background.
  */
 export async function startAutomationLoop() {
+  if (isLoopActive) {
+    logBotActivity('⚠️ Concurrency warning: A search loop is already active or shutting down. Aborting duplicate launch.');
+    return;
+  }
+  isLoopActive = true;
+
   let context, page;
   try {
     const launcher = await launchBrowser();
@@ -457,7 +442,6 @@ export async function startAutomationLoop() {
       await page.waitForLoadState('networkidle').catch(() => {});
       await page.waitForTimeout(2000);
 
-      // Check security wall immediately after first navigation
       await checkSecurityChallenges(page);
 
       // 1. Search Job Title
@@ -469,7 +453,7 @@ export async function startAutomationLoop() {
         await page.keyboard.press('Backspace');
         await titleInput.fill(botState.targetJob);
         await page.waitForTimeout(1500);
-        await page.keyboard.press('Escape'); // Close autocomplete suggestions popup
+        await page.keyboard.press('Escape');
       }
 
       // 2. Search Location
@@ -490,10 +474,9 @@ export async function startAutomationLoop() {
       if (searchBtn) {
         await humanClick(page, searchBtn);
         await page.waitForLoadState('networkidle').catch(() => {});
-        await page.waitForTimeout(2000); // Wait for job split panes to load
+        await page.waitForTimeout(2000);
       }
 
-      // Check security wall after search submission
       await checkSecurityChallenges(page);
 
       let pageNum = 1;
@@ -503,9 +486,10 @@ export async function startAutomationLoop() {
         if (botState.status === 'idle') break;
         logBotActivity(`📄 Scanning search page ${pageNum} in "${location}"...`);
 
-        const leftPane = await page.$('.jobsearch-LeftPane, #mosaic-provider-jobcards');
+        // Wait up to 15 seconds for left pane cards to render fully
+        const leftPane = await page.waitForSelector('.jobsearch-LeftPane, #mosaic-provider-jobcards, #mosaic-jobResults, .jobsearch-ResultsList', { timeout: 15000 }).catch(() => null);
         if (!leftPane) {
-          logBotActivity('⚠️ Search Left Pane not found. Skipping location...');
+          logBotActivity('⚠️ Search Left Pane not found (timed out waiting for elements). Skipping location...');
           break;
         }
 
@@ -529,9 +513,8 @@ export async function startAutomationLoop() {
           try {
             await humanClick(page, item.element);
             await page.waitForLoadState('networkidle').catch(() => {});
-            await page.waitForTimeout(1500); // Wait for details to load on Right Pane
+            await page.waitForTimeout(1500);
 
-            // Check security challenge inside split-pane loading
             await checkSecurityChallenges(page);
 
             const rightPaneSelector = '#vjs-container, .jobsearch-RightPane, #jobsearch-ViewjobPaneWrapper';
@@ -582,7 +565,6 @@ export async function startAutomationLoop() {
 
             await applicationPage.waitForLoadState().catch(() => {});
 
-            // Handle multi-step questionnaire on the application page
             const success = await handleApplicationForm(applicationPage, jobUrl);
             if (success) {
               logBotActivity(`🎉 Successfully completed application for job: ${item.jk}`);
@@ -597,14 +579,13 @@ export async function startAutomationLoop() {
           }
         }
 
-        // Navigate to Next Pagination Page on Left Pane
         const nextLink = await page.$('a[aria-label="Next Page"], a[data-testid="pagination-page-next"], button[aria-label="Next Page"]');
         if (nextLink) {
           logBotActivity(`⏭️ Clicking next page link (Page ${pageNum} -> ${pageNum + 1})...`);
           await humanClick(page, nextLink);
           await page.waitForLoadState('networkidle').catch(() => {});
           pageNum++;
-          await page.waitForTimeout(2000); // Wait for page loading transition
+          await page.waitForTimeout(2000);
         } else {
           logBotActivity('🏁 No more pages available. Finished pagination.');
           break;
@@ -619,6 +600,7 @@ export async function startAutomationLoop() {
     logBotActivity(`🚨 Critical bot error: ${err.message}`);
     botState.status = 'error';
   } finally {
+    isLoopActive = false; // Release lock
     if (context) {
       try {
         await context.close();
