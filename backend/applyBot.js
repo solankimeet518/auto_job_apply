@@ -406,7 +406,7 @@ async function handleApplicationForm(page, jobUrl) {
       }
     }
 
-    const nextBtn = await page.$('button:has-text("Continue"), button:has-text("Next"), button.ia-continueButton, button[type="submit"]');
+    const nextBtn = await page.$('button:has-text("Continue"), button:has-text("Next"), button.ia-continueButton, button[data-testid="continue-button"], button[type="submit"]');
     if (nextBtn) {
       logBotActivity('⏭️ Clicking continue...');
       await humanClick(page, nextBtn);
