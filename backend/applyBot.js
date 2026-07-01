@@ -328,8 +328,18 @@ async function handleApplicationForm(page, jobUrl) {
           valueToFill = profileData.email || '';
         } else if (labelLower.includes('phone') || labelLower.includes('mobile') || nameAttr.includes('phone')) {
           valueToFill = profileData.phone || '';
-        } else if (labelLower.includes('city') || labelLower.includes('state') || labelLower.includes('country') || labelLower.includes('address')) {
-          valueToFill = profileData.location || '';
+        } else if (labelLower.includes('street address') || labelLower.includes('address line 1') || (labelLower.includes('address') && !labelLower.includes('email') && !labelLower.includes('ip') && !labelLower.includes('city') && !labelLower.includes('state') && !labelLower.includes('country'))) {
+          valueToFill = profileData.address || '';
+        } else if (labelLower.includes('city') || nameAttr.includes('city') || idAttr.includes('city')) {
+          valueToFill = profileData.city || '';
+        } else if (labelLower.includes('state') || labelLower.includes('province') || nameAttr.includes('state') || idAttr.includes('state')) {
+          valueToFill = profileData.state || '';
+        } else if (labelLower.includes('pin code') || labelLower.includes('pincode') || labelLower.includes('postal code') || labelLower.includes('postalcode') || labelLower.includes('zip code') || labelLower.includes('zipcode') || nameAttr.includes('pincode') || nameAttr.includes('postal') || idAttr.includes('pincode') || idAttr.includes('postal')) {
+          valueToFill = profileData.pincode || '';
+        } else if (labelLower.includes('country') || nameAttr.includes('country') || idAttr.includes('country')) {
+          valueToFill = profileData.country || '';
+        } else if (labelLower.includes('current location') || labelLower.includes('location') || nameAttr.includes('location') || idAttr.includes('location')) {
+          valueToFill = [profileData.city, profileData.state, profileData.country].filter(Boolean).join(', ');
         } else {
           const res = await generateAnswer(label);
           if (res.outOfContext) {
