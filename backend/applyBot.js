@@ -15,7 +15,7 @@ let isLoopActive = false;
  */
 async function askUserAndWait(questionText, jobUrl) {
   const questionId = Math.random().toString(36).substring(2, 9);
-  
+
   botState.pendingQuestions.push({
     id: questionId,
     text: questionText,
@@ -38,7 +38,7 @@ async function askUserAndWait(questionText, jobUrl) {
  */
 async function checkSecurityChallenges(page) {
   let isChallenged = false;
-  
+
   while (true) {
     const title = await page.title().catch(() => '');
     const hasCfContainer = await page.$('#cf-challenge-running, .cf-browser-verification, #challenge-running').catch(() => null);
@@ -79,8 +79,8 @@ async function humanClick(page, elementOrLocator) {
     if (!element) return;
 
     // Scroll element into view and trigger Playwright's native click
-    await element.scrollIntoViewIfNeeded().catch(() => {});
-    await element.click().catch(() => {});
+    await element.scrollIntoViewIfNeeded().catch(() => { });
+    await element.click().catch(() => { });
     await page.waitForTimeout(100);
   } catch (clickErr) {
     console.log('Click bypassed or failed due to DOM status:', clickErr.message);
@@ -151,7 +151,7 @@ async function chooseBestOption(question, options) {
   let profileData = {};
   try {
     profileData = JSON.parse(fs.readFileSync(profilePath, 'utf8'));
-  } catch (_) {}
+  } catch (_) { }
 
   const model = new ChatOllama({
     baseUrl: config.ollama.baseUrl,
@@ -222,7 +222,7 @@ async function handleApplicationForm(page, jobUrl) {
 
   // Wait for the initial application form page to load completely (network idle)
   logBotActivity('⏳ Waiting for application page load state to complete...');
-  await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+  await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => { });
   await page.waitForTimeout(1000);
 
   while (!isDone) {
@@ -309,7 +309,7 @@ async function handleApplicationForm(page, jobUrl) {
         if (options.length > 0) {
           const chosenOption = await chooseBestOption(label, options);
           logBotActivity(`🗂️ Selecting dropdown: "${label}" -> "${chosenOption}"`);
-          
+
           const optionValue = await select.evaluate((el, text) => {
             const opt = Array.from(el.options).find(o => o.text.trim() === text);
             return opt ? opt.value : '';
@@ -346,7 +346,7 @@ async function handleApplicationForm(page, jobUrl) {
       if (isVisible && !alreadyChecked) {
         const firstRadio = group[0];
         const label = await getFieldLabel(page, firstRadio);
-        
+
         const options = [];
         for (const radio of group) {
           const id = await radio.getAttribute('id');
@@ -363,7 +363,7 @@ async function handleApplicationForm(page, jobUrl) {
           const optionTexts = options.map(o => o.text);
           const chosenText = await chooseBestOption(label, optionTexts);
           logBotActivity(`🔘 Selecting radio option: "${label}" -> "${chosenText}"`);
-          
+
           const target = options.find(o => o.text === chosenText);
           if (target) {
             await humanClick(page, target.element);
@@ -374,11 +374,12 @@ async function handleApplicationForm(page, jobUrl) {
     }
 
     const nextBtn = await page.$('button:has-text("Continue")');
+    logBotActivity(nextBtn);
     if (nextBtn) {
       logBotActivity('⏭️ Clicking continue...');
       await humanClick(page, nextBtn);
       // Wait for next section network requests to finish, then wait 1 second for DOM reaction
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => { });
       await page.waitForTimeout(1000);
     } else {
       logBotActivity('⚠️ Navigation button not found. Assuming application form is stuck or complete.');
@@ -415,7 +416,7 @@ export async function startAutomationLoop() {
 
       logBotActivity(`🌐 Visiting Indeed India: https://in.indeed.com/`);
       await page.goto('https://in.indeed.com/');
-      await page.waitForLoadState('domcontentloaded').catch(() => {});
+      await page.waitForLoadState('domcontentloaded').catch(() => { });
       await page.waitForTimeout(1000);
 
       await checkSecurityChallenges(page);
@@ -449,7 +450,7 @@ export async function startAutomationLoop() {
       const searchBtn = await page.$('button[type="submit"], button:has-text("Find jobs")');
       if (searchBtn) {
         await humanClick(page, searchBtn);
-        await page.waitForLoadState('domcontentloaded').catch(() => {});
+        await page.waitForLoadState('domcontentloaded').catch(() => { });
         await page.waitForTimeout(1000);
       }
 
@@ -484,11 +485,11 @@ export async function startAutomationLoop() {
 
           const jobUrl = `https://in.indeed.com/viewjob?jk=${item.jk}`;
           logBotActivity(`👉 Clicking card for Job ID: ${item.jk}...`);
-          
+
           try {
             await humanClick(page, item.element);
             // Wait for network requests loading the right-hand details pane to finish
-            await page.waitForLoadState('networkidle', { timeout: 6000 }).catch(() => {});
+            await page.waitForLoadState('networkidle', { timeout: 6000 }).catch(() => { });
             await page.waitForTimeout(600);
 
             await checkSecurityChallenges(page);
@@ -526,7 +527,7 @@ export async function startAutomationLoop() {
             logBotActivity(`✅ Job matches profile! Reason: ${suitability.reason}`);
 
             logBotActivity('🚀 "Apply with Indeed" found! Triggering new application tab...');
-            
+
             let applicationPage = page;
             let isNewTab = false;
 
@@ -541,7 +542,7 @@ export async function startAutomationLoop() {
               logBotActivity('ℹ️ No new tab opened. Running form filler in main window or modal.');
             }
 
-            await applicationPage.waitForLoadState().catch(() => {});
+            await applicationPage.waitForLoadState().catch(() => { });
 
             const success = await handleApplicationForm(applicationPage, jobUrl);
             if (success) {
@@ -561,7 +562,7 @@ export async function startAutomationLoop() {
         if (nextLink) {
           logBotActivity(`⏭️ Clicking next page link (Page ${pageNum} -> ${pageNum + 1})...`);
           await humanClick(page, nextLink);
-          await page.waitForLoadState('domcontentloaded').catch(() => {});
+          await page.waitForLoadState('domcontentloaded').catch(() => { });
           pageNum++;
           await page.waitForTimeout(1500);
         } else {
