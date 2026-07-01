@@ -95,4 +95,14 @@ export const api = {
       body: JSON.stringify({ questionId, answer }),
     });
   },
+
+  /**
+   * Test the query answering engine.
+   */
+  async queryTest(question) {
+    return apiFetch('/api/query-test', {
+      method: 'POST',
+      body: JSON.stringify({ question }),
+    });
+  },
 };
