@@ -74,7 +74,9 @@ You must return ONLY a valid JSON object matching the following structure:
     }
   ],
   "keyAchievements": [],
-  "additionalInfo": ""
+  "additionalInfo": "",
+  "currentCTC": "",
+  "expectedCTC": ""
 }
 
 Rules:

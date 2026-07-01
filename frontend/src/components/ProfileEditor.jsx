@@ -16,6 +16,8 @@ export default function ProfileEditor({ initialProfile, onSaveComplete, onReuplo
     prof.targetLocations = prof.targetLocations || (prof.targetLocation ? [prof.targetLocation] : []);
     prof.jobTypes = prof.jobTypes || [];
     prof.workModes = prof.workModes || [];
+    prof.currentCTC = prof.currentCTC || '';
+    prof.expectedCTC = prof.expectedCTC || '';
 
     const skills = prof.skills || {};
     if (Array.isArray(skills)) {
@@ -551,9 +553,33 @@ export default function ProfileEditor({ initialProfile, onSaveComplete, onReuplo
               <textarea
                 value={profile.summary || ''}
                 onChange={(e) => handleBasicChange('summary', e.target.value)}
-                rows={5}
+                rows={4}
                 style={{ width: '100%', padding: '14px 16px', borderRadius: '10px', background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
               />
+            </div>
+
+            {/* CTC / Compensation Details Textareas */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: '600', textTransform: 'uppercase' }}>💸 Current CTC / Salary Details</label>
+                <textarea
+                  value={profile.currentCTC || ''}
+                  onChange={(e) => handleBasicChange('currentCTC', e.target.value)}
+                  placeholder="e.g. 10 LPA or 85,000 USD/Year"
+                  rows={2}
+                  style={{ width: '100%', padding: '12px 16px', borderRadius: '10px', background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none', resize: 'none', fontFamily: 'inherit', fontSize: '14px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: '600', textTransform: 'uppercase' }}>💰 Expected CTC / Salary Details</label>
+                <textarea
+                  value={profile.expectedCTC || ''}
+                  onChange={(e) => handleBasicChange('expectedCTC', e.target.value)}
+                  placeholder="e.g. 12-14 LPA (Negotiable) or 100k USD"
+                  rows={2}
+                  style={{ width: '100%', padding: '12px 16px', borderRadius: '10px', background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none', resize: 'none', fontFamily: 'inherit', fontSize: '14px' }}
+                />
+              </div>
             </div>
           </div>
         )}

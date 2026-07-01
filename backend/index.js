@@ -93,6 +93,8 @@ const server = Bun.serve({
         extracted.projects = extracted.projects || [];
         extracted.keyAchievements = extracted.keyAchievements || [];
         extracted.additionalInfo = extracted.additionalInfo || '';
+        extracted.currentCTC = extracted.currentCTC || '';
+        extracted.expectedCTC = extracted.expectedCTC || '';
 
         const parsedSkills = extracted.skills || {};
         extracted.skills = {
