@@ -16,6 +16,26 @@ export default function ProfileEditor({ initialProfile, onSaveComplete, onReuplo
     prof.targetLocations = prof.targetLocations || (prof.targetLocation ? [prof.targetLocation] : []);
     prof.jobTypes = prof.jobTypes || [];
     prof.workModes = prof.workModes || [];
+
+    const skills = prof.skills || {};
+    if (Array.isArray(skills)) {
+      prof.skills = {
+        languages: [],
+        frameworks: [],
+        databases: [],
+        devops: [],
+        tools: skills
+      };
+    } else {
+      prof.skills = {
+        languages: skills.languages || [],
+        frameworks: skills.frameworks || [],
+        databases: skills.databases || [],
+        devops: skills.devops || [],
+        tools: skills.tools || []
+      };
+    }
+
     return prof;
   });
   const [activeTab, setActiveTab] = useState('basic');
@@ -24,7 +44,13 @@ export default function ProfileEditor({ initialProfile, onSaveComplete, onReuplo
   const [errorMsg, setErrorMsg] = useState(null);
   
   // Temporary interactive states
-  const [newSkill, setNewSkill] = useState('');
+  const [newSkillsInput, setNewSkillsInput] = useState({
+    languages: '',
+    frameworks: '',
+    databases: '',
+    devops: '',
+    tools: ''
+  });
   const [newLocation, setNewLocation] = useState('');
   const [newAchievement, setNewAchievement] = useState('');
 
@@ -132,24 +158,48 @@ export default function ProfileEditor({ initialProfile, onSaveComplete, onReuplo
     }));
   };
 
-  // Skill tag add/remove
-  const handleAddSkill = (e) => {
-    e.preventDefault();
-    const cleanSkill = newSkill.trim();
-    if (cleanSkill && !profile.skills.includes(cleanSkill)) {
-      setProfile(prev => ({
-        ...prev,
-        skills: [...prev.skills, cleanSkill]
-      }));
-      setNewSkill('');
+  const handleSkillsInputChange = (category, val) => {
+    setNewSkillsInput(prev => ({ ...prev, [category]: val }));
+  };
+
+  const handleAddSkill = (category) => {
+    const rawVal = newSkillsInput[category] || '';
+    const cleanSkill = rawVal.trim();
+    if (cleanSkill) {
+      const skillsToAdd = cleanSkill.split(',').map(s => s.trim()).filter(Boolean);
+      setProfile(prev => {
+        const skillsObj = prev.skills || {};
+        const currentCat = skillsObj[category] || [];
+        const newCat = [...currentCat];
+        skillsToAdd.forEach(s => {
+          if (!newCat.includes(s)) {
+            newCat.push(s);
+          }
+        });
+        return {
+          ...prev,
+          skills: {
+            ...skillsObj,
+            [category]: newCat
+          }
+        };
+      });
+      setNewSkillsInput(prev => ({ ...prev, [category]: '' }));
     }
   };
 
-  const handleRemoveSkill = (skillToRemove) => {
-    setProfile(prev => ({
-      ...prev,
-      skills: prev.skills.filter(s => s !== skillToRemove)
-    }));
+  const handleRemoveSkill = (category, skillToRemove) => {
+    setProfile(prev => {
+      const skillsObj = prev.skills || {};
+      const currentCat = skillsObj[category] || [];
+      return {
+        ...prev,
+        skills: {
+          ...skillsObj,
+          [category]: currentCat.filter(s => s !== skillToRemove)
+        }
+      };
+    });
   };
 
   // Experience dynamically add/remove/edit
@@ -553,60 +603,75 @@ export default function ProfileEditor({ initialProfile, onSaveComplete, onReuplo
               </div>
             </div>
 
-            <h4 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--primary)', marginBottom: '16px' }}>Interactive Skill Tags</h4>
-            
-            {/* Add Skill Form */}
-            <form onSubmit={handleAddSkill} style={{ display: 'flex', gap: '12px', marginBottom: '20px' }}>
-              <input
-                type="text"
-                placeholder="Enter a new skill (e.g. Docker, Vue.js)..."
-                value={newSkill}
-                onChange={(e) => setNewSkill(e.target.value)}
-                style={{ flex: 1, padding: '12px 16px', borderRadius: '10px', background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
-              />
-              <button
-                type="submit"
-                style={{
-                  display: 'flex', alignItems: 'center', background: 'rgba(139, 92, 246, 0.1)', color: 'var(--primary)',
-                  border: '1px solid rgba(139, 92, 246, 0.3)', padding: '0 20px', borderRadius: '10px',
-                  fontWeight: '600', cursor: 'pointer', transition: 'all 0.3s ease'
-                }}
-              >
-                <Plus size={16} style={{ marginRight: '6px' }} /> Add
-              </button>
-            </form>
+            <h4 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--primary)', marginBottom: '20px', borderTop: '1px solid var(--border)', paddingTop: '24px' }}>Skills & Technologies (Categorized)</h4>
 
-            {/* Skills Tag Cloud */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', maxHeight: '250px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px', background: 'rgba(0, 0, 0, 0.1)' }}>
-              {profile.skills?.length === 0 ? (
-                <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>No skills added yet.</p>
-              ) : (
-                profile.skills?.map((skill, index) => (
-                  <span
-                    key={index}
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', background: 'rgba(139, 92, 246, 0.08)',
-                      border: '1px solid rgba(139, 92, 246, 0.25)', padding: '6px 12px', borderRadius: '30px',
-                      fontSize: '13px', fontWeight: '500', color: 'var(--text)'
-                    }}
-                  >
-                    {skill}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {[
+                { key: 'languages', label: '💻 Programming Languages', placeholder: 'Add programming languages (comma separated, e.g. JavaScript, Python)...' },
+                { key: 'frameworks', label: '📦 Frameworks, Libraries & Runtimes', placeholder: 'Add React, Node.js, Express, etc. (comma separated)...' },
+                { key: 'databases', label: '🗄️ Databases & Caches', placeholder: 'Add PostgreSQL, MongoDB, Redis, etc. (comma separated)...' },
+                { key: 'devops', label: '☁️ DevOps, Cloud & CI/CD', placeholder: 'Add Docker, AWS, Kubernetes, etc. (comma separated)...' },
+                { key: 'tools', label: '🛠️ Tools & Others', placeholder: 'Add Git, JIRA, Postman, etc. (comma separated)...' }
+              ].map(cat => (
+                <div key={cat.key} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{cat.label}</label>
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    <input
+                      type="text"
+                      placeholder={cat.placeholder}
+                      value={newSkillsInput[cat.key] || ''}
+                      onChange={(e) => handleSkillsInputChange(cat.key, e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddSkill(cat.key);
+                        }
+                      }}
+                      style={{ flex: 1, padding: '10px 14px', borderRadius: '8px', background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none', fontSize: '14px' }}
+                    />
                     <button
                       type="button"
-                      onClick={() => handleRemoveSkill(skill)}
+                      onClick={() => handleAddSkill(cat.key)}
                       style={{
-                        background: 'transparent', border: 'none', color: 'var(--text-muted)',
-                        marginLeft: '8px', cursor: 'pointer', fontSize: '11px', display: 'flex',
-                        alignItems: 'center', justifyContent: 'center'
+                        background: 'rgba(139, 92, 246, 0.1)', color: 'var(--primary)',
+                        border: '1px solid rgba(139, 92, 246, 0.3)', padding: '0 16px', borderRadius: '8px',
+                        fontWeight: '600', cursor: 'pointer', transition: 'all 0.3s ease', fontSize: '13px'
                       }}
-                      onMouseOver={(e) => e.target.style.color = 'var(--danger)'}
-                      onMouseOut={(e) => e.target.style.color = 'var(--text-muted)'}
                     >
-                      ✕
+                      Add
                     </button>
-                  </span>
-                ))
-              )}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '12px', border: '1px solid var(--border)', borderRadius: '10px', background: 'rgba(0, 0, 0, 0.1)', minHeight: '44px' }}>
+                    {(!profile.skills?.[cat.key] || profile.skills[cat.key].length === 0) ? (
+                      <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>No items added yet.</span>
+                    ) : (
+                      profile.skills[cat.key].map((item, index) => (
+                        <span
+                          key={index}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', background: 'rgba(139, 92, 246, 0.08)',
+                            border: '1px solid rgba(139, 92, 246, 0.25)', padding: '4px 10px', borderRadius: '30px',
+                            fontSize: '13px', fontWeight: '500', color: 'var(--text)'
+                          }}
+                        >
+                          {item}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveSkill(cat.key, item)}
+                            style={{
+                              background: 'transparent', border: 'none', color: 'var(--text-muted)',
+                              marginLeft: '8px', cursor: 'pointer', fontSize: '11px', display: 'flex',
+                              alignItems: 'center', justifyContent: 'center'
+                            }}
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      ))
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}

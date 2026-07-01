@@ -94,6 +94,15 @@ const server = Bun.serve({
         extracted.keyAchievements = extracted.keyAchievements || [];
         extracted.additionalInfo = extracted.additionalInfo || '';
 
+        const parsedSkills = extracted.skills || {};
+        extracted.skills = {
+          languages: parsedSkills.languages || [],
+          frameworks: parsedSkills.frameworks || [],
+          databases: parsedSkills.databases || [],
+          devops: parsedSkills.devops || [],
+          tools: parsedSkills.tools || []
+        };
+
         return getCorsResponse({ status: 'extracted', profile: extracted });
       }
 

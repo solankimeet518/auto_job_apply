@@ -53,7 +53,13 @@ You must return ONLY a valid JSON object matching the following structure:
       "description": ""
     }
   ],
-  "skills": [],
+  "skills": {
+    "languages": [],
+    "frameworks": [],
+    "databases": [],
+    "devops": [],
+    "tools": []
+  },
   "targetJob": "${targetJob}",
   "targetLocations": [],
   "jobTypes": [],
