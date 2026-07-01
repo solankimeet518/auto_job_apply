@@ -24,11 +24,10 @@ export default function BotDashboard({ profile }) {
     }
   };
   
-  // Answering state
   const [answerInput, setAnswerInput] = useState('');
   const [submittingAnswer, setSubmittingAnswer] = useState(false);
 
-  const logEndRef = useRef(null);
+  const terminalRef = useRef(null);
 
   // Poll server status and logs every 1 second
   useEffect(() => {
@@ -51,10 +50,19 @@ export default function BotDashboard({ profile }) {
     return () => clearInterval(pollInterval);
   }, []);
 
-  // Auto-scroll logs terminal to bottom
+  // Auto-scroll logs terminal to bottom only if user is already looking at the bottom
   useEffect(() => {
-    if (logEndRef.current) {
-      logEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    const term = terminalRef.current;
+    if (term) {
+      // Check if user is scrolled near the bottom (within 80px)
+      const isNearBottom = term.scrollHeight - term.scrollTop - term.clientHeight < 80;
+      // Scroll to bottom if near bottom, or if logs just started loading
+      if (isNearBottom || logs.length <= 1) {
+        term.scrollTo({
+          top: term.scrollHeight,
+          behavior: 'smooth'
+        });
+      }
     }
   }, [logs]);
 
@@ -181,7 +189,7 @@ export default function BotDashboard({ profile }) {
         )}
 
         {/* Live Logs Terminal */}
-        <div className="glass-card" style={{ padding: '32px', display: 'flex', flexDirection: 'column', flex: 1, minHeight: '500px' }}>
+        <div className="glass-card" style={{ padding: '32px', display: 'flex', flexDirection: 'column', flex: 1, minHeight: '600px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '16px', marginBottom: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <TermIcon size={20} style={{ color: 'var(--primary)' }} />
@@ -194,12 +202,15 @@ export default function BotDashboard({ profile }) {
           </div>
 
           {/* Terminal Screen */}
-          <div style={{
-            flex: 1, background: '#090a0f', border: '1px solid var(--border)', borderRadius: '12px',
-            padding: '20px', fontFamily: '"Courier New", Courier, monospace', fontSize: '13px',
-            color: '#a7f3d0', overflowY: 'auto', maxHeight: '420px', minHeight: '350px',
-            lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '8px'
-          }}>
+          <div 
+            ref={terminalRef}
+            style={{
+              flex: 1, background: '#090a0f', border: '1px solid var(--border)', borderRadius: '12px',
+              padding: '20px', fontFamily: '"Courier New", Courier, monospace', fontSize: '13px',
+              color: '#a7f3d0', overflowY: 'auto', minHeight: '400px', height: '100%',
+              lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '8px'
+            }}
+          >
             {logs.length === 0 ? (
               <div style={{ color: 'var(--text-muted)', display: 'flex', flex: 1, justifyContent: 'center', alignItems: 'center', fontStyle: 'italic' }}>
                 Console idle. Click "Start Application Loop" to begin Indeed automation.
@@ -217,7 +228,6 @@ export default function BotDashboard({ profile }) {
                 );
               })
             )}
-            <div ref={logEndRef} />
           </div>
         </div>
       </div>
