@@ -38,6 +38,60 @@ async function askUserAndWait(questionText, jobUrl) {
 }
 
 /**
+ * Uses Ollama to compare job details with candidate profile to filter out mismatches.
+ */
+async function isJobSuitable(jobTitle, jobDescription, profileData) {
+  const model = new ChatOllama({
+    baseUrl: config.ollama.baseUrl,
+    model: config.ollama.model,
+    temperature: 0.1,
+  });
+
+  const prompt = `You are a career assistant. Compare the candidate's profile against the job details to determine if this job is suitable and a good match for the candidate.
+
+Candidate Profile:
+---
+Target Job Title: ${profileData.targetJob || ''}
+Skills:
+- Programming Languages: ${profileData.skills?.languages?.join(', ') || ''}
+- Frameworks: ${profileData.skills?.frameworks?.join(', ') || ''}
+- Databases: ${profileData.skills?.databases?.join(', ') || ''}
+- DevOps: ${profileData.skills?.devops?.join(', ') || ''}
+- Tools: ${profileData.skills?.tools?.join(', ') || ''}
+Projects: ${JSON.stringify(profileData.projects || [])}
+Achievements: ${JSON.stringify(profileData.keyAchievements || [])}
+Experience Summary: ${profileData.summary || ''}
+---
+
+Job Details:
+- Job Title: ${jobTitle}
+- Job Description:
+${jobDescription.substring(0, 3000)}
+
+Determine if the candidate is qualified for this job. For example, if the job description requires technologies, experience years, or a role that is completely mismatched, answer false.
+You must output a valid JSON object ONLY. Do not include any other markdown, text, or wrapper:
+{
+  "eligible": true or false,
+  "reason": "Brief explanation of match or mismatch"
+}`;
+
+  try {
+    const response = await model.invoke(prompt);
+    const resultText = response.content.trim();
+    const startIdx = resultText.indexOf('{');
+    const endIdx = resultText.lastIndexOf('}');
+    if (startIdx !== -1 && endIdx !== -1) {
+      const jsonStr = resultText.substring(startIdx, endIdx + 1);
+      return JSON.parse(jsonStr);
+    }
+    return { eligible: true, reason: 'Implicit match' };
+  } catch (err) {
+    console.error('Suitability check failed:', err);
+    return { eligible: true, reason: 'Error checking suitability, defaulting to eligible.' };
+  }
+}
+
+/**
  * Uses Ollama to pick the best option from a list for radio buttons or dropdowns.
  * @param {string} question - The field label/question.
  * @param {string[]} options - The list of available options.
@@ -315,6 +369,9 @@ export async function startAutomationLoop() {
     logBotActivity(`🔍 Target job: "${botState.targetJob}"`);
     logBotActivity(`📍 Locations list: ${JSON.stringify(botState.targetLocations)}`);
 
+    const profilePath = path.join(process.cwd(), 'profile.json');
+    const profileData = fs.existsSync(profilePath) ? JSON.parse(fs.readFileSync(profilePath, 'utf8')) : {};
+
     for (const location of botState.targetLocations) {
       if (botState.status === 'idle') break;
 
@@ -323,52 +380,83 @@ export async function startAutomationLoop() {
       await page.goto(searchUrl);
       await page.waitForTimeout(4000); // Wait for job cards loading
 
-      // Extract Job Keys
-      const jobKeys = await page.$$eval('a[data-jk]', links => {
-        return links
-          .map(a => a.getAttribute('data-jk'))
-          .filter(Boolean);
-      });
+      let pageNum = 1;
+      const maxPages = 5; // Safety limit to avoid infinite loops
 
-      const uniqueKeys = [...new Set(jobKeys)];
-      logBotActivity(`📋 Found ${uniqueKeys.length} potential job listings in "${location}"`);
-
-      for (const jk of uniqueKeys) {
+      while (pageNum <= maxPages) {
         if (botState.status === 'idle') break;
+        logBotActivity(`📄 Scanning search page ${pageNum} in "${location}"...`);
 
-        const jobUrl = `https://www.indeed.com/viewjob?jk=${jk}`;
-        logBotActivity(`🔗 Examining job: ${jobUrl}`);
-        
-        try {
-          await page.goto(jobUrl);
-          await page.waitForTimeout(3000);
+        // Extract Job Keys
+        const jobKeys = await page.$$eval('a[data-jk]', links => {
+          return links
+            .map(a => a.getAttribute('data-jk'))
+            .filter(Boolean);
+        });
 
-          // Check if "Apply now" (Easy Apply) exists
-          // Note: Indeed uses "Apply now" button for indeed apply, and "Apply on company site" for external redirect.
-          const applyBtn = await page.$('button.ia-IndeedApplyButton, button:has-text("Apply now"), .jobsearch-IndeedApplyButton-button');
-          const externalBtn = await page.$('button:has-text("Apply on company site"), button:has-text("Apply on company website")');
+        const uniqueKeys = [...new Set(jobKeys)];
+        logBotActivity(`📋 Found ${uniqueKeys.length} potential job listings on page ${pageNum}`);
 
-          if (externalBtn) {
-            logBotActivity('➡️ External job posting (requires redirect). Skipping...');
-            continue;
+        for (const jk of uniqueKeys) {
+          if (botState.status === 'idle') break;
+
+          const jobUrl = `https://www.indeed.com/viewjob?jk=${jk}`;
+          logBotActivity(`🔗 Examining job: ${jobUrl}`);
+          
+          try {
+            await page.goto(jobUrl);
+            await page.waitForTimeout(3000);
+
+            // Extract job details for suitability analysis
+            const jobTitle = await page.locator('h1, .jobsearch-JobInfoHeader-title').first().innerText().catch(() => 'Unknown Title');
+            const jobDescription = await page.locator('#jobDescriptionText').innerText().catch(() => '');
+
+            logBotActivity(`🧠 Analyzing suitability for: "${jobTitle}"...`);
+            const suitability = await isJobSuitable(jobTitle, jobDescription, profileData);
+            if (!suitability.eligible) {
+              logBotActivity(`❌ Skipped: Job is not suitable. Reason: ${suitability.reason}`);
+              continue;
+            }
+            logBotActivity(`✅ Job matches profile! Reason: ${suitability.reason}`);
+
+            // Check if "Apply now" (Easy Apply) or "Apply with Indeed" exists
+            const applyBtn = await page.$('button.ia-IndeedApplyButton, button:has-text("Apply now"), button:has-text("Apply with Indeed"), .jobsearch-IndeedApplyButton-button');
+            const externalBtn = await page.$('button:has-text("Apply on company site"), button:has-text("Apply on company website"), a:has-text("Apply on company site"), a:has-text("Apply on company website")');
+
+            if (externalBtn) {
+              logBotActivity('➡️ External job posting (requires redirect). Skipping...');
+              continue;
+            }
+
+            if (!applyBtn) {
+              logBotActivity('🔍 "Apply with Indeed" or "Apply now" button not found. Skipping...');
+              continue;
+            }
+
+            logBotActivity('🚀 "Apply with Indeed" found! Initializing indeed application flow...');
+            await applyBtn.click();
+            await page.waitForTimeout(4000); // Wait for apply overlay loading
+
+            // Handle form filling steps
+            const success = await handleApplicationForm(page, jobUrl);
+            if (success) {
+              logBotActivity(`🎉 Successfully completed application for job: ${jk}`);
+            }
+          } catch (jobErr) {
+            logBotActivity(`❌ Error processing job ${jk}: ${jobErr.message}`);
           }
+        }
 
-          if (!applyBtn) {
-            logBotActivity('🔍 "Apply now" button not found. Skipping...');
-            continue;
-          }
-
-          logBotActivity('🚀 "Apply now" found! Initializing indeed application modal...');
-          await applyBtn.click();
-          await page.waitForTimeout(4000); // Wait for apply overlay loading
-
-          // Handle form filling steps
-          const success = await handleApplicationForm(page, jobUrl);
-          if (success) {
-            logBotActivity(`🎉 Successfully completed application for job: ${jk}`);
-          }
-        } catch (jobErr) {
-          logBotActivity(`❌ Error processing job ${jk}: ${jobErr.message}`);
+        // Navigate to Next Pagination Page
+        const nextLink = await page.$('a[aria-label="Next Page"], a[data-testid="pagination-page-next"], button[aria-label="Next Page"]');
+        if (nextLink) {
+          logBotActivity(`⏭️ Clicking next page link (Page ${pageNum} -> ${pageNum + 1})...`);
+          await nextLink.click();
+          pageNum++;
+          await page.waitForTimeout(5000); // Wait for page transition
+        } else {
+          logBotActivity('🏁 No more pages available. Finished pagination.');
+          break;
         }
       }
     }
