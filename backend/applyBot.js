@@ -342,7 +342,8 @@ async function handleApplicationForm(page, jobUrl) {
     if (nextBtn) {
       logBotActivity('⏭️ Clicking continue...');
       await nextBtn.click();
-      await page.waitForTimeout(4000); // Wait for transition
+      await page.waitForLoadState('networkidle').catch(() => {});
+      await page.waitForTimeout(1500); // Wait for DOM reaction
     } else {
       logBotActivity('⚠️ Navigation button not found. Assuming application form is stuck or complete.');
       isDone = true;
@@ -403,7 +404,8 @@ export async function startAutomationLoop() {
       const searchBtn = await page.$('button[type="submit"], button:has-text("Find jobs")');
       if (searchBtn) {
         await searchBtn.click();
-        await page.waitForTimeout(6000); // Wait for job split panes to load
+        await page.waitForLoadState('networkidle').catch(() => {});
+        await page.waitForTimeout(2000); // Wait for job split panes to load
       }
 
       let pageNum = 1;
@@ -441,7 +443,8 @@ export async function startAutomationLoop() {
           try {
             // Click Left Pane card to load detail on the Right Pane
             await item.element.click();
-            await page.waitForTimeout(3000);
+            await page.waitForLoadState('networkidle').catch(() => {});
+            await page.waitForTimeout(1500); // Wait for details to load on Right Pane
 
             // Access Right Pane elements
             const rightPane = await page.$('#vjs-container, .jobsearch-RightPane, #jobsearch-ViewjobPaneWrapper');
@@ -513,8 +516,9 @@ export async function startAutomationLoop() {
         if (nextLink) {
           logBotActivity(`⏭️ Clicking next page link (Page ${pageNum} -> ${pageNum + 1})...`);
           await nextLink.click();
+          await page.waitForLoadState('networkidle').catch(() => {});
           pageNum++;
-          await page.waitForTimeout(5000); // Wait for page loading transition
+          await page.waitForTimeout(2000); // Wait for page loading transition
         } else {
           logBotActivity('🏁 No more pages available. Finished pagination.');
           break;
