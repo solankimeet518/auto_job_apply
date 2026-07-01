@@ -4,6 +4,7 @@ import { api } from './api';
 import UploadResume from './components/UploadResume';
 import ProfileEditor from './components/ProfileEditor';
 import AIAnsweringTest from './components/AIAnsweringTest';
+import BotDashboard from './components/BotDashboard';
 import { Terminal } from 'lucide-react';
 
 function App() {
@@ -58,7 +59,7 @@ function App() {
               style={{
                 background: editorTab === 'profile' ? 'var(--primary)' : 'transparent',
                 color: editorTab === 'profile' ? '#fff' : 'var(--text-muted)',
-                border: 'none', borderRadius: '20px', padding: '8px 20px', fontSize: '13px', fontWeight: '600',
+                border: 'none', borderRadius: '20px', padding: '8px 16px', fontSize: '13px', fontWeight: '600',
                 cursor: 'pointer', transition: 'all 0.3s ease'
               }}
             >
@@ -69,11 +70,22 @@ function App() {
               style={{
                 background: editorTab === 'querytest' ? 'var(--primary)' : 'transparent',
                 color: editorTab === 'querytest' ? '#fff' : 'var(--text-muted)',
-                border: 'none', borderRadius: '20px', padding: '8px 20px', fontSize: '13px', fontWeight: '600',
+                border: 'none', borderRadius: '20px', padding: '8px 16px', fontSize: '13px', fontWeight: '600',
                 cursor: 'pointer', transition: 'all 0.3s ease'
               }}
             >
               🤖 AI Query Test
+            </button>
+            <button
+              onClick={() => setEditorTab('dashboard')}
+              style={{
+                background: editorTab === 'dashboard' ? 'var(--primary)' : 'transparent',
+                color: editorTab === 'dashboard' ? '#fff' : 'var(--text-muted)',
+                border: 'none', borderRadius: '20px', padding: '8px 16px', fontSize: '13px', fontWeight: '600',
+                cursor: 'pointer', transition: 'all 0.3s ease'
+              }}
+            >
+              🚀 Apply Console
             </button>
           </div>
         )}
@@ -112,13 +124,16 @@ function App() {
             initialProfile={profile}
             onSaveComplete={(savedProfile) => {
               setProfile(savedProfile);
+              setEditorTab('dashboard'); // Auto-switch to dashboard/console on save
             }}
             onReuploadRequested={() => {
               setScreen('uploader');
             }}
           />
-        ) : (
+        ) : editorTab === 'querytest' ? (
           <AIAnsweringTest />
+        ) : (
+          <BotDashboard profile={profile} />
         )
       )}
       
