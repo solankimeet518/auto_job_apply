@@ -9,6 +9,20 @@ export default function BotDashboard({ profile }) {
   const [targetJob, setTargetJob] = useState(profile.targetJob || '');
   const [targetLocations, setTargetLocations] = useState(profile.targetLocations || []);
   const [newLocation, setNewLocation] = useState('');
+
+  const [targetJobTypes, setTargetJobTypes] = useState(profile.jobTypes || []);
+  const [targetWorkModes, setTargetWorkModes] = useState(profile.workModes || []);
+
+  const AVAILABLE_JOB_TYPES = ['Full-time', 'Part-time', 'Contract', 'Temporary', 'Internship'];
+  const AVAILABLE_WORK_MODES = ['Remote', 'Hybrid', 'On-site'];
+
+  const handleCheckboxChange = (field, item, isChecked) => {
+    if (field === 'jobTypes') {
+      setTargetJobTypes(prev => isChecked ? [...prev, item] : prev.filter(x => x !== item));
+    } else if (field === 'workModes') {
+      setTargetWorkModes(prev => isChecked ? [...prev, item] : prev.filter(x => x !== item));
+    }
+  };
   
   // Answering state
   const [answerInput, setAnswerInput] = useState('');
@@ -47,8 +61,8 @@ export default function BotDashboard({ profile }) {
   const handleStartBot = async () => {
     if (status === 'running' || status === 'paused_input') return;
     try {
-      // Pass the customized job title and locations to start
-      await api.startBot(targetJob, targetLocations);
+      // Pass all runtime search parameters to start the bot
+      await api.startBot(targetJob, targetLocations, targetJobTypes, targetWorkModes);
     } catch (err) {
       alert(`Failed to start bot: ${err.message}`);
     }
@@ -313,6 +327,45 @@ export default function BotDashboard({ profile }) {
               )}
             </div>
           </div>
+
+          {/* Job Types Selection */}
+          <div style={{ marginTop: '4px' }}>
+            <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: '600', textTransform: 'uppercase' }}>💼 Job Types</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'rgba(0,0,0,0.15)' }}>
+              {AVAILABLE_JOB_TYPES.map(type => (
+                <label key={type} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: (status === 'running' || status === 'paused_input') ? 'not-allowed' : 'pointer', fontSize: '13px' }}>
+                  <input
+                    type="checkbox"
+                    checked={targetJobTypes.includes(type)}
+                    disabled={status === 'running' || status === 'paused_input'}
+                    onChange={(e) => handleCheckboxChange('jobTypes', type, e.target.checked)}
+                    style={{ width: '14px', height: '14px', accentColor: 'var(--primary)' }}
+                  />
+                  {type}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Work Modes Selection */}
+          <div style={{ marginTop: '4px' }}>
+            <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: '600', textTransform: 'uppercase' }}>🏢 Work Modes</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'rgba(0,0,0,0.15)' }}>
+              {AVAILABLE_WORK_MODES.map(mode => (
+                <label key={mode} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: (status === 'running' || status === 'paused_input') ? 'not-allowed' : 'pointer', fontSize: '13px' }}>
+                  <input
+                    type="checkbox"
+                    checked={targetWorkModes.includes(mode)}
+                    disabled={status === 'running' || status === 'paused_input'}
+                    onChange={(e) => handleCheckboxChange('workModes', mode, e.target.checked)}
+                    style={{ width: '14px', height: '14px', accentColor: 'var(--primary)' }}
+                  />
+                  {mode}
+                </label>
+              ))}
+            </div>
+          </div>
+
         </div>
 
       </div>
