@@ -28,7 +28,11 @@ You must return ONLY a valid JSON object matching the following structure:
   "lastName": "",
   "email": "",
   "phone": "",
-  "location": "",
+  "address": "Street address if found in the resume",
+  "city": "City name",
+  "state": "State or province name",
+  "pincode": "Postal code or ZIP code",
+  "country": "Country name",
   "links": {
     "github": "",
     "linkedin": "",
