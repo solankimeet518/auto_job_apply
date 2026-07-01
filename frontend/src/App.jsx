@@ -3,11 +3,13 @@ import './App.css';
 import { api } from './api';
 import UploadResume from './components/UploadResume';
 import ProfileEditor from './components/ProfileEditor';
+import AIAnsweringTest from './components/AIAnsweringTest';
 import { Terminal } from 'lucide-react';
 
 function App() {
   const [screen, setScreen] = useState('loading'); // 'loading' | 'uploader' | 'editor'
   const [profile, setProfile] = useState(null);
+  const [editorTab, setEditorTab] = useState('profile'); // 'profile' | 'querytest'
 
   useEffect(() => {
     async function checkProfile() {
@@ -48,6 +50,34 @@ function App() {
           </div>
         </div>
 
+        {/* Tab switcher when profile is loaded */}
+        {screen === 'editor' && (
+          <div style={{ display: 'flex', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: '24px', padding: '4px' }}>
+            <button
+              onClick={() => setEditorTab('profile')}
+              style={{
+                background: editorTab === 'profile' ? 'var(--primary)' : 'transparent',
+                color: editorTab === 'profile' ? '#fff' : 'var(--text-muted)',
+                border: 'none', borderRadius: '20px', padding: '8px 20px', fontSize: '13px', fontWeight: '600',
+                cursor: 'pointer', transition: 'all 0.3s ease'
+              }}
+            >
+              📝 Profile Editor
+            </button>
+            <button
+              onClick={() => setEditorTab('querytest')}
+              style={{
+                background: editorTab === 'querytest' ? 'var(--primary)' : 'transparent',
+                color: editorTab === 'querytest' ? '#fff' : 'var(--text-muted)',
+                border: 'none', borderRadius: '20px', padding: '8px 20px', fontSize: '13px', fontWeight: '600',
+                cursor: 'pointer', transition: 'all 0.3s ease'
+              }}
+            >
+              🤖 AI Query Test
+            </button>
+          </div>
+        )}
+
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', padding: '6px 12px', borderRadius: '20px' }}>
           <span className="status-indicator idle"></span>
           <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)' }}>Status: Config Mode</span>
@@ -77,15 +107,19 @@ function App() {
       )}
 
       {screen === 'editor' && (
-        <ProfileEditor
-          initialProfile={profile}
-          onSaveComplete={(savedProfile) => {
-            setProfile(savedProfile);
-          }}
-          onReuploadRequested={() => {
-            setScreen('uploader');
-          }}
-        />
+        editorTab === 'profile' ? (
+          <ProfileEditor
+            initialProfile={profile}
+            onSaveComplete={(savedProfile) => {
+              setProfile(savedProfile);
+            }}
+            onReuploadRequested={() => {
+              setScreen('uploader');
+            }}
+          />
+        ) : (
+          <AIAnsweringTest />
+        )
       )}
       
       <style>{`

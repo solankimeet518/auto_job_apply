@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Link as LinkIcon, Briefcase, GraduationCap, Save, RefreshCw, Plus, Trash2, Globe, Tag, Folder, Award, Cpu } from 'lucide-react';
+import { User, Link as LinkIcon, Briefcase, GraduationCap, Save, RefreshCw, Plus, Trash2, Globe, Tag, Folder, Award } from 'lucide-react';
 import { api } from '../api';
 
 export default function ProfileEditor({ initialProfile, onSaveComplete, onReuploadRequested }) {
@@ -28,23 +28,20 @@ export default function ProfileEditor({ initialProfile, onSaveComplete, onReuplo
   const [newLocation, setNewLocation] = useState('');
   const [newAchievement, setNewAchievement] = useState('');
 
-  // Answering engine test states
-  const [testQuestion, setTestQuestion] = useState('');
-  const [testResult, setTestResult] = useState(null);
-  const [testLoading, setTestLoading] = useState(false);
+  // Wizard tab sequence
+  const TABS_SEQUENCE = ['basic', 'links', 'experience', 'education', 'projects', 'additional'];
 
-  const handleTestQuery = async () => {
-    if (!testQuestion.trim()) return;
-    setTestLoading(true);
-    setTestResult(null);
-    try {
-      const res = await api.queryTest(testQuestion);
-      setTestResult(res);
-    } catch (err) {
-      console.error(err);
-      setTestResult({ error: err.message });
-    } finally {
-      setTestLoading(false);
+  const handleNext = () => {
+    const currentIndex = TABS_SEQUENCE.indexOf(activeTab);
+    if (currentIndex < TABS_SEQUENCE.length - 1) {
+      setActiveTab(TABS_SEQUENCE[currentIndex + 1]);
+    }
+  };
+
+  const handlePrev = () => {
+    const currentIndex = TABS_SEQUENCE.indexOf(activeTab);
+    if (currentIndex > 0) {
+      setActiveTab(TABS_SEQUENCE[currentIndex - 1]);
     }
   };
 
@@ -307,19 +304,6 @@ export default function ProfileEditor({ initialProfile, onSaveComplete, onReuplo
           }}
         >
           <Award size={18} style={{ marginRight: '10px' }} /> Achievements & Info
-        </button>
-
-        <button
-          onClick={() => setActiveTab('querytest')}
-          style={{
-            display: 'flex', alignItems: 'center', width: '100%', border: 'none', borderRadius: '10px',
-            padding: '12px 16px', fontSize: '14px', fontWeight: '600', cursor: 'pointer',
-            background: activeTab === 'querytest' ? 'var(--primary)' : 'transparent',
-            color: activeTab === 'querytest' ? '#fff' : 'var(--text-muted)',
-            transition: 'all 0.3s ease', textAlign: 'left'
-          }}
-        >
-          <Cpu size={18} style={{ marginRight: '10px', color: '#10b981' }} /> AI Answering Test
         </button>
 
         <hr style={{ borderColor: 'var(--border)', margin: '16px 0' }} />
@@ -966,90 +950,56 @@ export default function ProfileEditor({ initialProfile, onSaveComplete, onReuplo
           </div>
         )}
 
-        {/* 7. AI QUERY TEST TAB */}
-        {activeTab === 'querytest' && (
-          <div className="fade-in" style={{ flex: 1 }}>
-            <h3 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '24px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>AI Answering Test</h3>
-            <p style={{ fontSize: '14px', color: 'var(--text-muted)', marginBottom: '24px' }}>
-              Type any question that a job portal might ask (e.g. about years of experience with a tool, salary expectations, or why you fit the role). 
-              The query engine will generate an answer based on your profile details, or flag it as out-of-context.
-            </p>
+        {/* Footer Navigation & Save Row */}
+        <div style={{ marginTop: 'auto', paddingTop: '32px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {/* Previous Button */}
+          {activeTab !== 'basic' ? (
+            <button
+              type="button"
+              onClick={handlePrev}
+              style={{
+                background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text)', border: '1px solid var(--border)',
+                padding: '10px 20px', borderRadius: '10px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.3s ease'
+              }}
+              onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'}
+              onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'}
+            >
+              Previous
+            </button>
+          ) : (
+            <div></div>
+          )}
 
-            <div style={{ display: 'flex', gap: '12px', marginBottom: '28px' }}>
-              <input
-                type="text"
-                placeholder="e.g. How many years of experience do you have with React? or What is your expected salary?"
-                value={testQuestion}
-                onChange={(e) => setTestQuestion(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleTestQuery();
-                  }
-                }}
-                style={{ flex: 1, padding: '14px 16px', borderRadius: '10px', background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none' }}
-              />
-              <button
-                type="button"
-                onClick={handleTestQuery}
-                disabled={testLoading || !testQuestion.trim()}
-                style={{
-                  background: 'var(--primary)', color: '#fff', border: 'none', padding: '0 24px',
-                  borderRadius: '10px', fontWeight: '600', cursor: (testLoading || !testQuestion.trim()) ? 'not-allowed' : 'pointer',
-                  opacity: (testLoading || !testQuestion.trim()) ? 0.7 : 1, transition: 'all 0.3s ease'
-                }}
-              >
-                {testLoading ? 'Analyzing...' : 'Test Answering'}
-              </button>
-            </div>
-
-            {testResult && (
-              <div className="fade-in" style={{ marginTop: '24px' }}>
-                <h4 style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: '600', textTransform: 'uppercase' }}>Result</h4>
-                {testResult.error ? (
-                  <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '12px', padding: '20px', color: '#fca5a5' }}>
-                    <div style={{ fontWeight: '600', marginBottom: '4px', fontSize: '15px' }}>❌ SERVER ERROR</div>
-                    <p style={{ fontSize: '13px', opacity: 0.9 }}>
-                      {testResult.error}. Make sure the backend server is running and Ollama is online.
-                    </p>
-                  </div>
-                ) : testResult.outOfContext ? (
-                  <div style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: '12px', padding: '20px', color: '#fef3c7' }}>
-                    <div style={{ fontWeight: '600', marginBottom: '4px', fontSize: '15px' }}>⚠️ OUT OF CONTEXT</div>
-                    <p style={{ fontSize: '13px', opacity: 0.9 }}>
-                      The AI could not confidently answer this question using only the facts in your resume profile. 
-                      When running the job apply bot, it will pause and ask for your input, saving your answer so it never asks again.
-                    </p>
-                  </div>
-                ) : (
-                  <div style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '12px', padding: '20px', color: '#ecfdf5' }}>
-                    <div style={{ fontWeight: '600', marginBottom: '8px', color: 'var(--success)', fontSize: '15px' }}>✅ ANSWER GENERATED</div>
-                    <blockquote style={{ fontSize: '14px', fontStyle: 'italic', borderLeft: '3px solid var(--success)', paddingLeft: '16px', background: 'rgba(0,0,0,0.2)', padding: '12px 16px', borderRadius: '6px' }}>
-                      "{testResult.answer}"
-                    </blockquote>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Footer Save Row */}
-        <div style={{ marginTop: 'auto', paddingTop: '32px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
-          <button
-            onClick={handleSave}
-            disabled={saveLoading}
-            className="btn-glow"
-            style={{
-              display: 'flex', alignItems: 'center', background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%)',
-              border: 'none', color: '#fff', fontSize: '15px', fontWeight: '600', padding: '12px 24px',
-              borderRadius: '10px', cursor: saveLoading ? 'not-allowed' : 'pointer', opacity: saveLoading ? 0.7 : 1,
-              transition: 'all 0.3s ease'
-            }}
-          >
-            <Save size={18} style={{ marginRight: '8px' }} />
-            {saveLoading ? 'Saving...' : 'Confirm & Save Profile'}
-          </button>
+          {/* Next or Confirm & Save Button */}
+          {activeTab !== 'additional' ? (
+            <button
+              type="button"
+              onClick={handleNext}
+              style={{
+                background: 'var(--primary)', color: '#fff', border: 'none',
+                padding: '12px 24px', borderRadius: '10px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.3s ease'
+              }}
+              onMouseOver={(e) => e.currentTarget.style.background = 'var(--primary-hover)'}
+              onMouseOut={(e) => e.currentTarget.style.background = 'var(--primary)'}
+            >
+              Next
+            </button>
+          ) : (
+            <button
+              onClick={handleSave}
+              disabled={saveLoading}
+              className="btn-glow"
+              style={{
+                display: 'flex', alignItems: 'center', background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%)',
+                border: 'none', color: '#fff', fontSize: '15px', fontWeight: '600', padding: '12px 24px',
+                borderRadius: '10px', cursor: saveLoading ? 'not-allowed' : 'pointer', opacity: saveLoading ? 0.7 : 1,
+                transition: 'all 0.3s ease'
+              }}
+            >
+              <Save size={18} style={{ marginRight: '8px' }} />
+              {saveLoading ? 'Saving...' : 'Confirm & Save Profile'}
+            </button>
+          )}
         </div>
 
       </div>
