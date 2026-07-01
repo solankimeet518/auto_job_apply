@@ -537,7 +537,12 @@ export async function startAutomationLoop() {
     botState.status = 'error';
   } finally {
     if (context) {
-      await context.close();
+      try {
+        await context.close();
+      } catch (closeErr) {
+        // Safe to ignore since browser is already closed or closing
+        console.log('Browser context clean-up info:', closeErr.message);
+      }
     }
   }
 }
