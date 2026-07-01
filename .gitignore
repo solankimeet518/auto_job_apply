@@ -8,3 +8,4 @@ pending_jobs.json
 backend/user_data/
 backend/test_browser.js
 backend/login_indeed.js
+backend/inspect_resume_page.js
