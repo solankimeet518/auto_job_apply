@@ -77,6 +77,9 @@ async function humanClick(page, elementOrLocator) {
 
   if (!element) return;
 
+  // Ensure element is scrolled into view first
+  await element.scrollIntoViewIfNeeded().catch(() => {});
+
   const box = await element.boundingBox();
   if (!box) {
     await element.click();
