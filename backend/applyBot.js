@@ -80,7 +80,7 @@ async function humanClick(page, elementOrLocator) {
 
     // Scroll element into view and trigger Playwright's native click
     await element.scrollIntoViewIfNeeded().catch(() => { });
-    await element.click().catch(() => { });
+    await element.click({ timeout: 4000 }).catch(() => { });
     await page.waitForTimeout(100);
   } catch (clickErr) {
     console.log('Click bypassed or failed due to DOM status:', clickErr.message);
@@ -374,7 +374,7 @@ async function handleApplicationForm(page, jobUrl) {
     }
 
     const nextBtn = await page.$('button:has-text("Continue")');
-    logBotActivity(nextBtn);
+    logBotActivity(JSON.stringify(nextBtn));
     if (nextBtn) {
       logBotActivity('⏭️ Clicking continue...');
       await humanClick(page, nextBtn);
