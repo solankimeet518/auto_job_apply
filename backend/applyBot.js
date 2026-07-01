@@ -250,6 +250,11 @@ async function handleApplicationForm(page, jobUrl) {
   const profilePath = path.join(process.cwd(), 'profile.json');
   const profileData = fs.existsSync(profilePath) ? JSON.parse(fs.readFileSync(profilePath, 'utf8')) : {};
 
+  // Wait for the initial application form page to load completely (network idle)
+  logBotActivity('⏳ Waiting for application page load state to complete...');
+  await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+  await page.waitForTimeout(1000);
+
   while (!isDone) {
     if (botState.status === 'idle') {
       logBotActivity('🛑 Bot execution stopped during form fill.');
@@ -402,8 +407,9 @@ async function handleApplicationForm(page, jobUrl) {
     if (nextBtn) {
       logBotActivity('⏭️ Clicking continue...');
       await humanClick(page, nextBtn);
-      await page.waitForLoadState('domcontentloaded').catch(() => {});
-      await page.waitForTimeout(600);
+      // Wait for next section network requests to finish, then wait 1 second for DOM reaction
+      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page.waitForTimeout(1000);
     } else {
       logBotActivity('⚠️ Navigation button not found. Assuming application form is stuck or complete.');
       isDone = true;
