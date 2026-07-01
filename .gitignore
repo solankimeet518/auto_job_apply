@@ -5,3 +5,5 @@ profile.json
 pending_jobs.json
 .DS_Store
 *.log
+backend/user_data/
+backend/test_browser.js
