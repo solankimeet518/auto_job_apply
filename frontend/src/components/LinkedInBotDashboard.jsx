@@ -1,0 +1,396 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Play, Square, RefreshCw, Send, Users, ShieldAlert, Sparkles, Terminal, CheckCircle2, AlertCircle, FileText } from 'lucide-react';
+import { api } from '../api';
+
+export default function LinkedInBotDashboard({ profile }) {
+  const [status, setStatus] = useState('idle'); // 'idle' | 'running' | 'paused_login' | 'completed' | 'error'
+  const [logs, setLogs] = useState([]);
+  const [stats, setStats] = useState({ visited: 0, sent: 0, skipped: 0, currentPage: 1 });
+  const [loadingAction, setLoadingAction] = useState(false);
+
+  // Configuration Form State
+  const [keywords, setKeywords] = useState(profile?.targetJob ? `${profile.targetJob} Recruiter` : 'Software Engineer Recruiter');
+  const [location, setLocation] = useState(profile?.city || profile?.location || 'India');
+  const [network2nd, setNetwork2nd] = useState(true);
+  const [network3rd, setNetwork3rd] = useState(true);
+  const [maxInvites, setMaxInvites] = useState(25);
+  const [noteMode, setNoteMode] = useState('ai'); // 'ai' | 'template'
+  const [customTemplate, setCustomTemplate] = useState('Hi {name}, I noticed your work at {company} and would love to connect. I am an experienced {targetJob} exploring new opportunities.');
+
+  const logsEndRef = useRef(null);
+
+  // Poll status from backend
+  useEffect(() => {
+    let isMounted = true;
+
+    async function fetchStatus() {
+      try {
+        const data = await api.getLinkedInStatus();
+        if (isMounted && data) {
+          setStatus(data.status || 'idle');
+          setLogs(data.logs || []);
+          if (data.stats) {
+            setStats(data.stats);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to poll LinkedIn status:', err);
+      }
+    }
+
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 2000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  // Auto-scroll logs
+  useEffect(() => {
+    if (logsEndRef.current) {
+      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [logs]);
+
+  const handleStart = async () => {
+    setLoadingAction(true);
+    try {
+      await api.startLinkedInBot({
+        keywords,
+        location,
+        network2nd,
+        network3rd,
+        maxInvites: Number(maxInvites) || 25,
+        customTemplate: noteMode === 'template' ? customTemplate : '',
+      });
+      setStatus('running');
+    } catch (err) {
+      alert(`Failed to start LinkedIn bot: ${err.message}`);
+    } finally {
+      setLoadingAction(false);
+    }
+  };
+
+  const handleStop = async () => {
+    setLoadingAction(true);
+    try {
+      await api.stopLinkedInBot();
+      setStatus('idle');
+    } catch (err) {
+      alert(`Failed to stop LinkedIn bot: ${err.message}`);
+    } finally {
+      setLoadingAction(false);
+    }
+  };
+
+  return (
+    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {/* Header Banner */}
+      <div style={{
+        background: 'linear-gradient(135deg, rgba(14, 118, 168, 0.15) 0%, rgba(0, 160, 220, 0.05) 100%)',
+        border: '1px solid rgba(14, 118, 168, 0.3)',
+        borderRadius: '16px',
+        padding: '24px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{
+            width: '48px', height: '48px', borderRadius: '12px',
+            background: '#0A66C2', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#fff', fontSize: '24px', fontWeight: '800'
+          }}>
+            in
+          </div>
+          <div>
+            <h2 style={{ fontSize: '20px', fontWeight: '800', margin: 0, color: '#fff' }}>LinkedIn Outreach & Note Bot</h2>
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+              Automated connection requests with AI-personalized invitation notes (<span style={{ color: '#0A66C2' }}>&le; 280 chars</span>).
+            </p>
+          </div>
+        </div>
+
+        {/* Status Indicator Badge */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '8px',
+            background: 'var(--card-bg)', border: '1px solid var(--border)',
+            padding: '8px 16px', borderRadius: '24px'
+          }}>
+            <span className={`status-indicator ${status}`}></span>
+            <span style={{ fontSize: '13px', fontWeight: '700', textTransform: 'capitalize' }}>
+              {status === 'paused_login' ? '🔒 Paused (Login Needed)' : status}
+            </span>
+          </div>
+
+          {status === 'running' || status === 'paused_login' ? (
+            <button
+              onClick={handleStop}
+              disabled={loadingAction}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                background: '#EF4444', color: '#fff', border: 'none',
+                padding: '10px 20px', borderRadius: '10px', fontWeight: '700',
+                cursor: 'pointer', transition: 'all 0.2s ease'
+              }}
+            >
+              <Square size={16} /> Stop Outreach
+            </button>
+          ) : (
+            <button
+              onClick={handleStart}
+              disabled={loadingAction}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                background: '#0A66C2', color: '#fff', border: 'none',
+                padding: '10px 22px', borderRadius: '10px', fontWeight: '700',
+                cursor: 'pointer', transition: 'all 0.2s ease',
+                boxShadow: '0 4px 14px rgba(10, 102, 194, 0.4)'
+              }}
+            >
+              <Play size={16} /> Start Outreach
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Stats Counter Row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+        <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase' }}>Invitations Sent</span>
+            <Send size={16} color="#10B981" />
+          </div>
+          <div style={{ fontSize: '24px', fontWeight: '800', color: '#10B981' }}>{stats.sent}</div>
+        </div>
+
+        <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase' }}>Profiles Visited</span>
+            <Users size={16} color="#3B82F6" />
+          </div>
+          <div style={{ fontSize: '24px', fontWeight: '800', color: '#3B82F6' }}>{stats.visited}</div>
+        </div>
+
+        <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase' }}>Skipped (No Connect)</span>
+            <AlertCircle size={16} color="#F59E0B" />
+          </div>
+          <div style={{ fontSize: '24px', fontWeight: '800', color: '#F59E0B' }}>{stats.skipped}</div>
+        </div>
+
+        <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase' }}>Current Search Page</span>
+            <FileText size={16} color="#8B5CF6" />
+          </div>
+          <div style={{ fontSize: '24px', fontWeight: '800', color: '#8B5CF6' }}>Page {stats.currentPage}</div>
+        </div>
+      </div>
+
+      {/* Main Grid: Parameters & Terminal */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+        {/* Left: Configuration Form */}
+        <div style={{
+          background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '16px', padding: '24px',
+          display: 'flex', flexDirection: 'column', gap: '20px'
+        }}>
+          <h3 style={{ fontSize: '16px', fontWeight: '800', borderBottom: '1px solid var(--border)', paddingBottom: '12px', margin: 0 }}>
+            🎯 Search & Target Settings
+          </h3>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase' }}>
+              Target Keywords / Role
+            </label>
+            <input
+              type="text"
+              value={keywords}
+              onChange={e => setKeywords(e.target.value)}
+              placeholder="e.g. Software Engineer Recruiter, Engineering Manager..."
+              style={{
+                width: '100%', padding: '12px 16px', borderRadius: '10px',
+                background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none'
+              }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase' }}>
+              Target Location Filter
+            </label>
+            <input
+              type="text"
+              value={location}
+              onChange={e => setLocation(e.target.value)}
+              placeholder="e.g. India, United States, Bengaluru..."
+              style={{
+                width: '100%', padding: '12px 16px', borderRadius: '10px',
+                background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none'
+              }}
+            />
+          </div>
+
+          {/* Network Connections Checkboxes */}
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase' }}>
+              Network Connection Levels
+            </label>
+            <div style={{ display: 'flex', gap: '20px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={network2nd}
+                  onChange={e => setNetwork2nd(e.target.checked)}
+                  style={{ accentColor: '#0A66C2', width: '16px', height: '16px' }}
+                />
+                2nd Degree Connections
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={network3rd}
+                  onChange={e => setNetwork3rd(e.target.checked)}
+                  style={{ accentColor: '#0A66C2', width: '16px', height: '16px' }}
+                />
+                3rd+ Degree Connections
+              </label>
+            </div>
+          </div>
+
+          {/* Max Daily Invites Limit */}
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                Max Invitations per Session
+              </label>
+              <span style={{ fontSize: '14px', fontWeight: '800', color: '#0A66C2' }}>{maxInvites} Invites</span>
+            </div>
+            <input
+              type="range"
+              min="5"
+              max="50"
+              step="5"
+              value={maxInvites}
+              onChange={e => setMaxInvites(e.target.value)}
+              style={{ width: '100%', accentColor: '#0A66C2' }}
+            />
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+              Recommended: 20-30 invites daily to keep your account safe from restrictions.
+            </span>
+          </div>
+
+          {/* Note Mode Selector */}
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase' }}>
+              Invitation Note Generation Mode
+            </label>
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+              <button
+                type="button"
+                onClick={() => setNoteMode('ai')}
+                style={{
+                  flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid var(--border)',
+                  background: noteMode === 'ai' ? 'rgba(10, 102, 194, 0.2)' : 'var(--input-bg)',
+                  borderColor: noteMode === 'ai' ? '#0A66C2' : 'var(--border)',
+                  color: noteMode === 'ai' ? '#fff' : 'var(--text-muted)',
+                  fontSize: '13px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+                }}
+              >
+                <Sparkles size={16} color="#0A66C2" /> 🤖 AI Personalized (Ollama)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setNoteMode('template')}
+                style={{
+                  flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid var(--border)',
+                  background: noteMode === 'template' ? 'rgba(10, 102, 194, 0.2)' : 'var(--input-bg)',
+                  borderColor: noteMode === 'template' ? '#0A66C2' : 'var(--border)',
+                  color: noteMode === 'template' ? '#fff' : 'var(--text-muted)',
+                  fontSize: '13px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+                }}
+              >
+                <FileText size={16} /> ✍️ Custom Template
+              </button>
+            </div>
+
+            {noteMode === 'template' && (
+              <div style={{ marginTop: '8px' }}>
+                <textarea
+                  rows="3"
+                  value={customTemplate}
+                  onChange={e => setCustomTemplate(e.target.value)}
+                  style={{
+                    width: '100%', padding: '10px 14px', borderRadius: '8px',
+                    background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none', fontSize: '13px'
+                  }}
+                />
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Tags:</span>
+                  {['{name}', '{company}', '{role}', '{targetJob}', '{myName}'].map(tag => (
+                    <span key={tag} style={{
+                      fontSize: '11px', padding: '2px 6px', borderRadius: '4px',
+                      background: 'rgba(255,255,255,0.05)', color: '#0A66C2', border: '1px solid rgba(10, 102, 194, 0.3)'
+                    }}>
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right: Live Terminal Logs */}
+        <div style={{
+          background: '#090D16', border: '1px solid var(--border)', borderRadius: '16px', padding: '20px',
+          display: 'flex', flexDirection: 'column', height: '600px'
+        }}>
+          <div style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            borderBottom: '1px solid rgba(255,255,255,0.07)', paddingBottom: '12px', marginBottom: '12px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Terminal size={18} color="#0A66C2" />
+              <span style={{ fontSize: '14px', fontWeight: '800', color: '#fff' }}>Live Activity Console</span>
+            </div>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{logs.length} events logged</span>
+          </div>
+
+          <div style={{
+            flex: 1, overflowY: 'auto', fontFamily: 'monospace', fontSize: '12px',
+            lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '6px'
+          }}>
+            {logs.length === 0 ? (
+              <div style={{ color: 'var(--text-muted)', textAlign: 'center', marginTop: '100px' }}>
+                <Users size={32} style={{ opacity: 0.3, marginBottom: '8px' }} />
+                <p>Click "Start Outreach" to begin scanning and connecting with professionals.</p>
+              </div>
+            ) : (
+              logs.map((log, index) => {
+                let color = '#E2E8F0';
+                if (log.includes('✅') || log.includes('✉️')) color = '#10B981';
+                else if (log.includes('⚠️') || log.includes('🔒') || log.includes('PAUSED')) color = '#F59E0B';
+                else if (log.includes('🛑') || log.includes('🚨') || log.includes('Error')) color = '#EF4444';
+                else if (log.includes('🔎') || log.includes('👤') || log.includes('🌐')) color = '#38BDF8';
+                else if (log.includes('✍️')) color = '#C084FC';
+
+                return (
+                  <div key={index} style={{ color, wordBreak: 'break-word' }}>
+                    {log}
+                  </div>
+                );
+              })
+            )}
+            <div ref={logsEndRef} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

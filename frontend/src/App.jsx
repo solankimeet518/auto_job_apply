@@ -4,6 +4,7 @@ import { api } from './api';
 import UploadResume from './components/UploadResume';
 import ProfileEditor from './components/ProfileEditor';
 import AIAnsweringTest from './components/AIAnsweringTest';
+import LinkedInBotDashboard from './components/LinkedInBotDashboard';
 import { Terminal } from 'lucide-react';
 
 function App() {
@@ -75,6 +76,17 @@ function App() {
             >
               🤖 AI Query Test
             </button>
+            <button
+              onClick={() => setEditorTab('linkedin')}
+              style={{
+                background: editorTab === 'linkedin' ? '#0A66C2' : 'transparent',
+                color: editorTab === 'linkedin' ? '#fff' : 'var(--text-muted)',
+                border: 'none', borderRadius: '20px', padding: '8px 20px', fontSize: '13px', fontWeight: '600',
+                cursor: 'pointer', transition: 'all 0.3s ease'
+              }}
+            >
+              🌐 LinkedIn Outreach
+            </button>
           </div>
         )}
 
@@ -117,8 +129,10 @@ function App() {
               setScreen('uploader');
             }}
           />
-        ) : (
+        ) : editorTab === 'querytest' ? (
           <AIAnsweringTest />
+        ) : (
+          <LinkedInBotDashboard profile={profile} />
         )
       )}
       

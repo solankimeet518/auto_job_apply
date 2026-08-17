@@ -1,0 +1,422 @@
+import { launchBrowser } from './browserLauncher.js';
+import { generateLinkedInNote } from './queryEngine.js';
+import fs from 'fs';
+import path from 'path';
+
+// Global state for LinkedIn Bot
+export let linkedinBotState = {
+  status: 'idle', // 'idle' | 'running' | 'paused_login' | 'completed' | 'error'
+  logs: [],
+  stats: {
+    visited: 0,
+    sent: 0,
+    skipped: 0,
+    currentPage: 1,
+  },
+  config: {
+    keywords: 'Software Engineer Recruiter',
+    location: '',
+    network2nd: true,
+    network3rd: true,
+    verifiedOnly: false,
+    maxInvites: 25,
+    customTemplate: '',
+  },
+};
+
+let isLinkedInLoopActive = false;
+let activeBrowserContext = null;
+
+export function logLinkedInActivity(message) {
+  const timestamp = new Date().toLocaleTimeString();
+  const formattedLog = `[${timestamp}] ${message}`;
+  console.log(formattedLog);
+  linkedinBotState.logs.push(formattedLog);
+  if (linkedinBotState.logs.length > 500) {
+    linkedinBotState.logs.shift();
+  }
+}
+
+/**
+ * Checks if the user is currently authenticated on LinkedIn.
+ * If not, pauses and waits for user to log in via the Chromium window.
+ */
+async function checkLinkedInLogin(page) {
+  logLinkedInActivity('🔍 Verifying LinkedIn authentication session...');
+  
+  await page.goto('https://www.linkedin.com/feed/', { waitUntil: 'domcontentloaded' }).catch(() => {});
+  await page.waitForTimeout(3000);
+
+  let isPaused = false;
+  while (true) {
+    if (linkedinBotState.status === 'idle') return false;
+
+    const isLoggedIn = await page.evaluate(() => {
+      const globalNav = document.querySelector('#global-nav, .global-nav__me, .feed-identity-module, a[href*="/in/me"]');
+      const isLoginOrAuth = window.location.href.includes('/login') || 
+                            window.location.href.includes('/checkpoint') || 
+                            window.location.href.includes('/authwall') ||
+                            window.location.href.includes('/signup');
+      return !!globalNav && !isLoginOrAuth;
+    }).catch(() => false);
+
+    if (isLoggedIn) {
+      if (isPaused) {
+        logLinkedInActivity('🔓 LinkedIn login verified! Resuming automation loop.');
+        linkedinBotState.status = 'running';
+      } else {
+        logLinkedInActivity('✅ LinkedIn session active.');
+      }
+      return true;
+    }
+
+    if (!isPaused) {
+      logLinkedInActivity('⚠️ Not logged into LinkedIn!');
+      logLinkedInActivity('🔒 Bot is PAUSED. Please log in to LinkedIn in the Chromium browser window.');
+      linkedinBotState.status = 'paused_login';
+      isPaused = true;
+    }
+
+    await page.waitForTimeout(3000);
+  }
+}
+
+/**
+ * Applies search filters: keywords, People category, 2nd & 3rd connections, and location.
+ */
+async function applySearchAndFilters(page, config) {
+  const keywords = config.keywords || 'Software Engineer Recruiter';
+  logLinkedInActivity(`🔎 Searching LinkedIn People for: "${keywords}"...`);
+
+  // Build targeted LinkedIn people search query with network connection parameters
+  const networkParams = [];
+  if (config.network2nd !== false) networkParams.push('S'); // 2nd degree
+  if (config.network3rd !== false) networkParams.push('O'); // 3rd+ degree
+
+  let searchUrl = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(keywords)}`;
+  if (networkParams.length > 0) {
+    searchUrl += `&network=${encodeURIComponent(JSON.stringify(networkParams))}`;
+  }
+
+  logLinkedInActivity(`🌐 Navigating to search URL: ${searchUrl}`);
+  await page.goto(searchUrl, { waitUntil: 'domcontentloaded' }).catch(() => {});
+  await page.waitForTimeout(3500);
+
+  // Apply location filter if specified and not empty
+  if (config.location && config.location.trim().length > 0) {
+    try {
+      logLinkedInActivity(`📍 Applying Location filter for: "${config.location}"...`);
+      const locBtn = await page.$('button[id*="locations"], button:has-text("Locations"), button[aria-label*="Locations filter"]');
+      if (locBtn) {
+        await locBtn.click().catch(() => {});
+        await page.waitForTimeout(1000);
+
+        const locInput = await page.$('input[placeholder*="Add a location"], input[aria-label*="Add a location"]');
+        if (locInput) {
+          await locInput.fill(config.location.trim());
+          await page.waitForTimeout(1500);
+          
+          // Select first autocomplete dropdown suggestion
+          const firstOption = await page.$('div[role="listbox"] div[role="option"], .basic-typeahead__selectable-list li');
+          if (firstOption) {
+            await firstOption.click().catch(() => {});
+            await page.waitForTimeout(500);
+          }
+        }
+
+        // Click "Show results" button inside filter dropdown
+        const applyBtn = await page.$('button[data-control-name="filter_show_results"], button:has-text("Show results"), button[aria-label*="Apply current filter"]');
+        if (applyBtn) {
+          await applyBtn.click().catch(() => {});
+          await page.waitForTimeout(3000);
+        }
+      }
+    } catch (filterErr) {
+      logLinkedInActivity(`⚠️ Notice: Location filter UI interaction bypassed: ${filterErr.message}`);
+    }
+  }
+
+  // Scroll page slightly to ensure search cards render
+  await page.evaluate(() => window.scrollBy(0, 400)).catch(() => {});
+  await page.waitForTimeout(1500);
+}
+
+/**
+ * Scans the current search results page for people profiles.
+ */
+async function getPeopleFromSearchPage(page) {
+  return await page.evaluate(() => {
+    const results = [];
+    const entityCards = document.querySelectorAll('.entity-result, li.reusable-search__result-container');
+
+    entityCards.forEach(card => {
+      const linkEl = card.querySelector('a.app-aware-link[href*="/in/"]');
+      if (!linkEl) return;
+
+      let href = linkEl.getAttribute('href') || '';
+      if (href.includes('?')) {
+        href = href.split('?')[0];
+      }
+
+      const nameEl = card.querySelector('.entity-result__title-text a span[aria-hidden="true"], .entity-result__title-text a');
+      const name = nameEl ? nameEl.innerText.trim() : '';
+
+      const headlineEl = card.querySelector('.entity-result__primary-subtitle');
+      const headline = headlineEl ? headlineEl.innerText.trim() : '';
+
+      const locationEl = card.querySelector('.entity-result__secondary-subtitle');
+      const location = locationEl ? locationEl.innerText.trim() : '';
+
+      if (name && name !== 'LinkedIn Member' && href) {
+        results.push({
+          url: href,
+          name,
+          headline,
+          location,
+        });
+      }
+    });
+
+    return results;
+  }).catch(() => []);
+}
+
+/**
+ * Opens a profile in a new tab, locates the Connect button (checking More dropdown if needed),
+ * opens the note modal, fills in the generated note, and sends the connection request.
+ */
+async function processProfileConnection(context, person, config, profileData) {
+  logLinkedInActivity(`👤 Processing: ${person.name} (${person.headline || 'Professional'})`);
+
+  let profilePage = null;
+  try {
+    profilePage = await context.newPage();
+    profilePage.setDefaultTimeout(20000);
+
+    await profilePage.goto(person.url, { waitUntil: 'domcontentloaded' }).catch(() => {});
+    await profilePage.waitForTimeout(3000);
+
+    // 1. Check for primary Connect button on profile top card
+    let connectBtn = await profilePage.$('main button:has-text("Connect"), div.ph5 button:has-text("Connect"), .pv-top-card button:has-text("Connect")');
+    
+    // 2. If not found directly, check the "More" dropdown
+    if (!connectBtn) {
+      logLinkedInActivity(`🔍 Direct Connect button not visible for ${person.name}. Checking "More" dropdown...`);
+      const moreBtn = await profilePage.$('main button[aria-label*="More actions"], main button:has-text("More"), div.ph5 button:has-text("More")');
+      
+      if (moreBtn) {
+        await moreBtn.click().catch(() => {});
+        await profilePage.waitForTimeout(1000);
+
+        // Find "Connect" inside the dropdown menu
+        connectBtn = await profilePage.$('div.artdeco-dropdown__content--is-open div[role="button"]:has-text("Connect"), div.artdeco-dropdown__content--is-open span:has-text("Connect")');
+      }
+    }
+
+    if (!connectBtn) {
+      logLinkedInActivity(`⏩ "Connect" option not available for ${person.name} (only Follow/InMail or already pending). Skipping.`);
+      linkedinBotState.stats.skipped++;
+      await profilePage.close().catch(() => {});
+      return false;
+    }
+
+    // 3. Click Connect button
+    logLinkedInActivity(`👉 Clicking "Connect" for ${person.name}...`);
+    await connectBtn.click().catch(() => {});
+    await profilePage.waitForTimeout(1500);
+
+    // 4. Handle "Add a note" invitation modal dialog
+    const modal = await profilePage.$('div[role="dialog"], .artdeco-modal');
+    if (modal) {
+      const addNoteBtn = await profilePage.$('div[role="dialog"] button:has-text("Add a note"), div[role="dialog"] button[aria-label*="Add a note"]');
+      
+      if (addNoteBtn) {
+        await addNoteBtn.click().catch(() => {});
+        await profilePage.waitForTimeout(1000);
+
+        // 5. Generate personalized connection note
+        const note = await generateLinkedInNote({
+          personName: person.name,
+          personRole: person.headline,
+          personCompany: person.location,
+          targetJob: config.keywords,
+          customTemplate: config.customTemplate,
+        });
+
+        logLinkedInActivity(`✍️ Generated Note (${note.length} chars): "${note}"`);
+
+        const textarea = await profilePage.$('textarea[name="message"], textarea#custom-message');
+        if (textarea) {
+          await textarea.fill(note);
+          await profilePage.waitForTimeout(1000);
+        }
+
+        // 6. Click "Send" / "Send invitation"
+        const sendBtn = await profilePage.$('div[role="dialog"] button:has-text("Send"), div[role="dialog"] button[aria-label*="Send invitation"], div[role="dialog"] button[aria-label*="Send now"]');
+        if (sendBtn) {
+          await sendBtn.click().catch(() => {});
+          await profilePage.waitForTimeout(2000);
+          logLinkedInActivity(`✉️ ✅ Successfully sent connection request with note to: ${person.name}!`);
+          linkedinBotState.stats.sent++;
+        }
+      } else {
+        // In case modal allows direct Send without note button
+        const directSend = await profilePage.$('div[role="dialog"] button:has-text("Send")');
+        if (directSend) {
+          await directSend.click().catch(() => {});
+          await profilePage.waitForTimeout(1500);
+          logLinkedInActivity(`✉️ ✅ Sent connection request directly to: ${person.name}`);
+          linkedinBotState.stats.sent++;
+        }
+      }
+    }
+
+    linkedinBotState.stats.visited++;
+    await profilePage.close().catch(() => {});
+
+    // Add randomized delay (3 to 6 seconds) between profiles for organic human pacing
+    const randomDelay = Math.floor(Math.random() * 3000) + 3000;
+    await new Promise(r => setTimeout(r, randomDelay));
+    return true;
+
+  } catch (err) {
+    logLinkedInActivity(`⚠️ Error processing profile ${person.name}: ${err.message}`);
+    linkedinBotState.stats.skipped++;
+    if (profilePage) {
+      await profilePage.close().catch(() => {});
+    }
+    return false;
+  }
+}
+
+/**
+ * Main LinkedIn outreach automation loop.
+ */
+export async function startLinkedInLoop(customConfig = {}) {
+  if (isLinkedInLoopActive) {
+    logLinkedInActivity('⚠️ LinkedIn outreach loop is already running.');
+    return;
+  }
+
+  isLinkedInLoopActive = true;
+  linkedinBotState.status = 'running';
+  linkedinBotState.stats = { visited: 0, sent: 0, skipped: 0, currentPage: 1 };
+  
+  if (customConfig && typeof customConfig === 'object') {
+    linkedinBotState.config = { ...linkedinBotState.config, ...customConfig };
+  }
+
+  const config = linkedinBotState.config;
+  const maxInvites = Number(config.maxInvites) || 25;
+
+  logLinkedInActivity('🚀 Starting LinkedIn Connection Outreach Bot...');
+  logLinkedInActivity(`🎯 Target: "${config.keywords}" | Max Invitations: ${maxInvites}`);
+
+  let context = null;
+
+  try {
+    const launcher = await launchBrowser();
+    context = launcher.context;
+    activeBrowserContext = context;
+    const page = launcher.page;
+
+    // 1. Verify LinkedIn login state
+    const loggedIn = await checkLinkedInLogin(page);
+    if (!loggedIn) {
+      logLinkedInActivity('🛑 Bot stopped before authentication was completed.');
+      linkedinBotState.status = 'idle';
+      return;
+    }
+
+    // 2. Load candidate profile context
+    const profilePath = path.join(process.cwd(), 'profile.json');
+    let profileData = {};
+    if (fs.existsSync(profilePath)) {
+      try {
+        profileData = JSON.parse(fs.readFileSync(profilePath, 'utf8'));
+      } catch (_) {}
+    }
+
+    // 3. Search and apply filters
+    await applySearchAndFilters(page, config);
+
+    let pageNum = 1;
+    let hasNextPage = true;
+
+    while (hasNextPage && linkedinBotState.status === 'running') {
+      if (linkedinBotState.stats.sent >= maxInvites) {
+        logLinkedInActivity(`🎉 Target quota of ${maxInvites} invitations reached for this session!`);
+        break;
+      }
+
+      linkedinBotState.stats.currentPage = pageNum;
+      logLinkedInActivity(`📄 Scanning Search Results Page ${pageNum}...`);
+
+      // Scroll down to load all search cards
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight / 2)).catch(() => {});
+      await page.waitForTimeout(1000);
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight)).catch(() => {});
+      await page.waitForTimeout(1500);
+
+      const people = await getPeopleFromSearchPage(page);
+      logLinkedInActivity(`📋 Found ${people.length} profiles on Page ${pageNum}.`);
+
+      if (people.length === 0) {
+        logLinkedInActivity('⚠️ No profiles found on this page. Ending search.');
+        break;
+      }
+
+      for (const person of people) {
+        if (linkedinBotState.status !== 'running') break;
+        if (linkedinBotState.stats.sent >= maxInvites) break;
+
+        await processProfileConnection(context, person, config, profileData);
+      }
+
+      if (linkedinBotState.status !== 'running' || linkedinBotState.stats.sent >= maxInvites) {
+        break;
+      }
+
+      // Locate and click "Next" pagination button
+      const nextBtn = await page.$('button[aria-label="Next"], button:has-text("Next"), .artdeco-pagination__button--next');
+      const isNextDisabled = nextBtn ? await nextBtn.evaluate(el => el.disabled || el.getAttribute('aria-disabled') === 'true').catch(() => true) : true;
+
+      if (nextBtn && !isNextDisabled) {
+        logLinkedInActivity(`⏭️ Clicking Next page (Page ${pageNum} -> ${pageNum + 1})...`);
+        await nextBtn.scrollIntoViewIfNeeded().catch(() => {});
+        await nextBtn.click().catch(() => {});
+        await page.waitForLoadState('domcontentloaded').catch(() => {});
+        await page.waitForTimeout(3000);
+        pageNum++;
+      } else {
+        logLinkedInActivity('🏁 Reached the final page of search results.');
+        hasNextPage = false;
+      }
+    }
+
+    logLinkedInActivity(`🎉 Outreach session completed! Sent: ${linkedinBotState.stats.sent} | Skipped: ${linkedinBotState.stats.skipped} | Visited: ${linkedinBotState.stats.visited}`);
+    linkedinBotState.status = 'completed';
+
+  } catch (error) {
+    logLinkedInActivity(`🚨 Critical LinkedIn bot error: ${error.message}`);
+    linkedinBotState.status = 'error';
+  } finally {
+    isLinkedInLoopActive = false;
+    if (context) {
+      await context.close().catch(() => {});
+    }
+  }
+}
+
+/**
+ * Gracefully stops the active LinkedIn outreach loop.
+ */
+export async function stopLinkedInLoop() {
+  logLinkedInActivity('🛑 Stopping LinkedIn outreach loop...');
+  linkedinBotState.status = 'idle';
+  isLinkedInLoopActive = false;
+  if (activeBrowserContext) {
+    await activeBrowserContext.close().catch(() => {});
+    activeBrowserContext = null;
+  }
+}
