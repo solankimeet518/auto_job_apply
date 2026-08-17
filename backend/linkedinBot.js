@@ -186,10 +186,14 @@ async function applySearchAndFilters(page, config, profileData = {}) {
       await page.waitForTimeout(500);
     }
 
-    // Click label with text '3rd+'
-    const label3rd = await page.$('label:has-text("3rd+"), span:has-text("3rd+"), button:has-text("3rd+")');
+    // Click label with text '3rd+' or '3rd'
+    const label3rd = await page.$(
+      'label:has-text("3rd+"), label:has-text("3rd"), ' +
+      'span:has-text("3rd+"), span:has-text("3rd"), ' +
+      'button:has-text("3rd+"), button:has-text("3rd")'
+    );
     if (label3rd) {
-      logLinkedInActivity('👉 Clicking label "3rd+"...');
+      logLinkedInActivity('👉 Clicking label "3rd+" / "3rd"...');
       await label3rd.click().catch(() => {});
       await page.waitForTimeout(500);
     }
