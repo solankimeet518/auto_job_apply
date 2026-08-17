@@ -111,11 +111,13 @@ async function applySearchAndFilters(page, config) {
 
   // 2. Click on label/button with text 'People'
   logLinkedInActivity(`👥 Selecting "People" filter button/label...`);
+  await page.waitForSelector('button:has-text("People"), label:has-text("People"), a:has-text("People"), ul.search-reusables__pill-filter-list li button:has-text("People")', { timeout: 8000 }).catch(() => {});
   const peopleFilter = await page.$('button:has-text("People"), label:has-text("People"), a:has-text("People"), ul.search-reusables__pill-filter-list li button:has-text("People")');
   if (peopleFilter) {
     await peopleFilter.click().catch(() => {});
     await page.waitForLoadState('domcontentloaded').catch(() => {});
-    await page.waitForTimeout(3000);
+    await page.waitForSelector('div[role="list"], ul[role="list"], .search-results-container, button:has-text("Locations")', { timeout: 8000 }).catch(() => {});
+    await page.waitForTimeout(2500);
     logLinkedInActivity('✅ Switched to "People" search view.');
   }
 
