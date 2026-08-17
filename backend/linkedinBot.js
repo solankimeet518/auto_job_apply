@@ -316,20 +316,36 @@ async function processProfileConnection(context, person, config, profileData) {
     await profilePage.goto(person.url, { waitUntil: 'domcontentloaded' }).catch(() => {});
     await profilePage.waitForTimeout(3000);
 
-    // 1. Check for primary Connect button on profile top card
-    let connectBtn = await profilePage.$('main button:has-text("Connect"), div.ph5 button:has-text("Connect"), .pv-top-card button:has-text("Connect")');
+    // 1. Check for primary Connect button/link on profile top card
+    let connectBtn = await profilePage.$(
+      'main button:has-text("Connect"), main a:has-text("Connect"), ' +
+      'div.ph5 button:has-text("Connect"), div.ph5 a:has-text("Connect"), ' +
+      '.pv-top-card button:has-text("Connect"), .pv-top-card a:has-text("Connect"), ' +
+      'a[aria-label*="Invite"], button[aria-label*="Invite"], [aria-label*="to connect"]'
+    );
     
     // 2. If not found directly, check the "More" dropdown
     if (!connectBtn) {
-      logLinkedInActivity(`🔍 Direct Connect button not visible for ${person.name}. Checking "More" dropdown...`);
-      const moreBtn = await profilePage.$('main button[aria-label*="More actions"], main button:has-text("More"), div.ph5 button:has-text("More")');
+      logLinkedInActivity(`🔍 Direct Connect button/link not visible for ${person.name}. Checking "More" dropdown...`);
+      const moreBtn = await profilePage.$(
+        'main button[aria-label*="More actions"], main button:has-text("More"), ' +
+        'div.ph5 button:has-text("More"), .pv-top-card button:has-text("More"), ' +
+        'button[aria-label*="More"]'
+      );
       
       if (moreBtn) {
+        await moreBtn.scrollIntoViewIfNeeded().catch(() => {});
         await moreBtn.click().catch(() => {});
         await profilePage.waitForTimeout(1000);
 
-        // Find "Connect" inside the dropdown menu
-        connectBtn = await profilePage.$('div.artdeco-dropdown__content--is-open div[role="button"]:has-text("Connect"), div.artdeco-dropdown__content--is-open span:has-text("Connect")');
+        // Find "Connect" inside the dropdown menu (supports <a>, <div>, <span>, <li>, [role="button"])
+        connectBtn = await profilePage.$(
+          'div.artdeco-dropdown__content--is-open div[role="button"]:has-text("Connect"), ' +
+          'div.artdeco-dropdown__content--is-open a:has-text("Connect"), ' +
+          'div.artdeco-dropdown__content--is-open li:has-text("Connect"), ' +
+          'div.artdeco-dropdown__content--is-open span:has-text("Connect"), ' +
+          'div.artdeco-dropdown__content--is-open [aria-label*="Invite"]'
+        );
       }
     }
 
@@ -340,8 +356,9 @@ async function processProfileConnection(context, person, config, profileData) {
       return false;
     }
 
-    // 3. Click Connect button
+    // 3. Click Connect button or link
     logLinkedInActivity(`👉 Clicking "Connect" for ${person.name}...`);
+    await connectBtn.scrollIntoViewIfNeeded().catch(() => {});
     await connectBtn.click().catch(() => {});
     await profilePage.waitForTimeout(1500);
 
