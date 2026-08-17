@@ -84,7 +84,7 @@ async function checkLinkedInLogin(page) {
 /**
  * Performs interactive search from home feed and applies People, Location, Connections, and Verified filters.
  */
-async function applySearchAndFilters(page, config) {
+async function applySearchAndFilters(page, config, profileData = {}) {
   const keywords = config.keywords || 'Software Engineer Recruiter';
   logLinkedInActivity(`🌐 Navigating to LinkedIn Home Feed...`);
 
@@ -121,10 +121,14 @@ async function applySearchAndFilters(page, config) {
     logLinkedInActivity('✅ Switched to "People" search view.');
   }
 
-  // 3. Apply Location Filter
-  if (config.location && config.location.trim().length > 0) {
+  // 3. Apply Location Filter from config or profile targetLocations
+  const targetLocation = (config.location && config.location.trim().length > 0)
+    ? config.location.trim()
+    : (profileData?.targetLocations?.[0] || profileData?.targetLocation || '');
+
+  if (targetLocation && targetLocation.length > 0) {
     try {
-      logLinkedInActivity(`📍 Opening Location filter for: "${config.location}"...`);
+      logLinkedInActivity(`📍 Opening Location filter for target location: "${targetLocation}"...`);
       const locBtn = await page.$('button:has-text("Locations"), button:has-text("Location"), label:has-text("Locations"), label:has-text("Location"), button[aria-label*="Locations filter"]');
       if (locBtn) {
         await locBtn.click().catch(() => {});
@@ -134,7 +138,7 @@ async function applySearchAndFilters(page, config) {
         const locInput = await page.$('input[data-testid="typeahead-input"][placeholder*="Add a location"], input[placeholder*="Add a location"], input[aria-label*="Add a location"]');
         if (locInput) {
           await locInput.click().catch(() => {});
-          await locInput.fill(config.location.trim());
+          await locInput.fill(targetLocation);
           await page.waitForTimeout(1500);
 
           // Select first suggestion option
@@ -454,7 +458,7 @@ export async function startLinkedInLoop(customConfig = {}) {
     }
 
     // 3. Search and apply filters
-    await applySearchAndFilters(page, config);
+    await applySearchAndFilters(page, config, profileData);
 
     let pageNum = 1;
     let hasNextPage = true;

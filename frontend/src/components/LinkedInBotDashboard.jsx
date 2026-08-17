@@ -8,14 +8,35 @@ export default function LinkedInBotDashboard({ profile }) {
   const [stats, setStats] = useState({ visited: 0, sent: 0, skipped: 0, currentPage: 1 });
   const [loadingAction, setLoadingAction] = useState(false);
 
+  const getDefaultLocation = () => {
+    if (profile?.targetLocations && profile.targetLocations.length > 0) {
+      return profile.targetLocations[0];
+    }
+    return profile?.targetLocation || profile?.city || profile?.location || '';
+  };
+
   // Configuration Form State
   const [keywords, setKeywords] = useState(profile?.targetJob ? `${profile.targetJob} Recruiter` : 'Software Engineer Recruiter');
-  const [location, setLocation] = useState(profile?.city || profile?.location || 'India');
+  const [location, setLocation] = useState(getDefaultLocation);
   const [network2nd, setNetwork2nd] = useState(true);
   const [network3rd, setNetwork3rd] = useState(true);
   const [maxInvites, setMaxInvites] = useState(25);
   const [noteMode, setNoteMode] = useState('ai'); // 'ai' | 'template'
   const [customTemplate, setCustomTemplate] = useState('Hi {name}, I noticed your work at {company} and would love to connect. I am an experienced {targetJob} exploring new opportunities.');
+
+  // Update defaults when profile is loaded
+  useEffect(() => {
+    if (profile) {
+      if (profile.targetLocations && profile.targetLocations.length > 0) {
+        setLocation(profile.targetLocations[0]);
+      } else if (profile.targetLocation) {
+        setLocation(profile.targetLocation);
+      }
+      if (profile.targetJob) {
+        setKeywords(`${profile.targetJob} Recruiter`);
+      }
+    }
+  }, [profile]);
 
   const logsEndRef = useRef(null);
 
@@ -219,9 +240,14 @@ export default function LinkedInBotDashboard({ profile }) {
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase' }}>
-              Target Location Filter
-            </label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                📍 Target Location Filter
+              </label>
+              {profile?.targetLocations?.length > 0 && (
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>From Target Locations</span>
+              )}
+            </div>
             <input
               type="text"
               value={location}
@@ -232,6 +258,27 @@ export default function LinkedInBotDashboard({ profile }) {
                 background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none'
               }}
             />
+            {profile?.targetLocations && profile.targetLocations.length > 0 && (
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)', alignSelf: 'center' }}>Quick select:</span>
+                {profile.targetLocations.map(loc => (
+                  <button
+                    key={loc}
+                    type="button"
+                    onClick={() => setLocation(loc)}
+                    style={{
+                      fontSize: '11px', padding: '3px 8px', borderRadius: '6px',
+                      background: location === loc ? 'rgba(10, 102, 194, 0.3)' : 'rgba(255,255,255,0.05)',
+                      color: location === loc ? '#38BDF8' : 'var(--text-muted)',
+                      border: location === loc ? '1px solid #0A66C2' : '1px solid rgba(255,255,255,0.1)',
+                      cursor: 'pointer', transition: 'all 0.2s ease'
+                    }}
+                  >
+                    {loc}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Network Connections Checkboxes */}
