@@ -321,7 +321,8 @@ async function processProfileConnection(context, person, config, profileData) {
       'main button:has-text("Connect"), main a:has-text("Connect"), ' +
       'div.ph5 button:has-text("Connect"), div.ph5 a:has-text("Connect"), ' +
       '.pv-top-card button:has-text("Connect"), .pv-top-card a:has-text("Connect"), ' +
-      'a[aria-label*="Invite"], button[aria-label*="Invite"], [aria-label*="to connect"]'
+      '.pvs-profile-actions button:has-text("Connect"), .pvs-profile-actions a:has-text("Connect"), ' +
+      'button[aria-label*="Invite"]:has-text("Connect"), a[aria-label*="Invite"], [aria-label*="to connect"]'
     );
     
     // 2. If not found directly, check the "More" dropdown
@@ -330,21 +331,24 @@ async function processProfileConnection(context, person, config, profileData) {
       const moreBtn = await profilePage.$(
         'main button[aria-label*="More actions"], main button:has-text("More"), ' +
         'div.ph5 button:has-text("More"), .pv-top-card button:has-text("More"), ' +
-        'button[aria-label*="More"]'
+        '.pvs-profile-actions button:has-text("More"), button[aria-label*="More"]'
       );
       
       if (moreBtn) {
         await moreBtn.scrollIntoViewIfNeeded().catch(() => {});
         await moreBtn.click().catch(() => {});
-        await profilePage.waitForTimeout(1000);
+        await profilePage.waitForTimeout(1200);
 
-        // Find "Connect" inside the dropdown menu (supports <a>, <div>, <span>, <li>, [role="button"])
+        // Find "Connect" inside the opened dropdown menu (supports <a>, <div>, <span>, <li>, [role="button"], [role="menuitem"])
         connectBtn = await profilePage.$(
-          'div.artdeco-dropdown__content--is-open div[role="button"]:has-text("Connect"), ' +
-          'div.artdeco-dropdown__content--is-open a:has-text("Connect"), ' +
-          'div.artdeco-dropdown__content--is-open li:has-text("Connect"), ' +
-          'div.artdeco-dropdown__content--is-open span:has-text("Connect"), ' +
-          'div.artdeco-dropdown__content--is-open [aria-label*="Invite"]'
+          '.artdeco-dropdown__content--is-open div[role="button"]:has-text("Connect"), ' +
+          '.artdeco-dropdown__content--is-open a:has-text("Connect"), ' +
+          '.artdeco-dropdown__content--is-open li:has-text("Connect"), ' +
+          '.artdeco-dropdown__content--is-open span:has-text("Connect"), ' +
+          '.artdeco-dropdown__content--is-open div.artdeco-dropdown__item:has-text("Connect"), ' +
+          '.artdeco-dropdown__content--is-open [aria-label*="Invite"], ' +
+          'div[role="menu"] div[role="menuitem"]:has-text("Connect"), ' +
+          'div[role="menu"] [role="button"]:has-text("Connect")'
         );
       }
     }
@@ -363,9 +367,14 @@ async function processProfileConnection(context, person, config, profileData) {
     await profilePage.waitForTimeout(1500);
 
     // 4. Handle "Add a note" invitation modal dialog
-    const modal = await profilePage.$('div[role="dialog"], .artdeco-modal');
+    const modal = await profilePage.waitForSelector('div[role="dialog"], .artdeco-modal', { timeout: 4000 }).catch(() => null);
     if (modal) {
-      const addNoteBtn = await profilePage.$('div[role="dialog"] button:has-text("Add a note"), div[role="dialog"] button[aria-label*="Add a note"]');
+      const addNoteBtn = await profilePage.$(
+        'div[role="dialog"] button:has-text("Add a note"), ' +
+        'div[role="dialog"] a:has-text("Add a note"), ' +
+        'div[role="dialog"] button[aria-label*="Add a note"], ' +
+        'div[role="dialog"] [aria-label*="Add a note"]'
+      );
       
       if (addNoteBtn) {
         await addNoteBtn.click().catch(() => {});
