@@ -400,6 +400,11 @@ async function processProfileConnection(context, person, config, profileData) {
     return true;
 
   } catch (err) {
+    if (err.message.includes('Target page, context or browser has been closed') || err.message.includes('browser has been closed')) {
+      logLinkedInActivity('🛑 Browser window was closed. Halting LinkedIn outreach.');
+      linkedinBotState.status = 'idle';
+      return false;
+    }
     logLinkedInActivity(`⚠️ Error processing profile ${person.name}: ${err.message}`);
     linkedinBotState.stats.skipped++;
     if (profilePage) {
