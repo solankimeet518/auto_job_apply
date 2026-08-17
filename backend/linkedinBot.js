@@ -238,15 +238,27 @@ async function applySearchAndFilters(page, config) {
 }
 
 /**
- * Scans the current search results page for people profiles.
+ * Scans the current search results page for people profiles using [role="list"] and [role="listitem"].
  */
 async function getPeopleFromSearchPage(page) {
   return await page.evaluate(() => {
     const results = [];
-    const entityCards = document.querySelectorAll('.entity-result, li.reusable-search__result-container');
 
-    entityCards.forEach(card => {
-      const linkEl = card.querySelector('a.app-aware-link[href*="/in/"]');
+    // 1. Locate the people list container with role="list"
+    const listContainer = document.querySelector('div[role="list"], ul[role="list"], .search-results-container [role="list"]');
+
+    // 2. Query all items with role="listitem"
+    let items = [];
+    if (listContainer) {
+      items = Array.from(listContainer.querySelectorAll('[role="listitem"]'));
+    }
+    if (items.length === 0) {
+      items = Array.from(document.querySelectorAll('[role="listitem"], .entity-result, li.reusable-search__result-container'));
+    }
+
+    items.forEach(card => {
+      // Find profile link
+      const linkEl = card.querySelector('a.app-aware-link[href*="/in/"], a[href*="/in/"]');
       if (!linkEl) return;
 
       let href = linkEl.getAttribute('href') || '';
@@ -254,13 +266,19 @@ async function getPeopleFromSearchPage(page) {
         href = href.split('?')[0];
       }
 
-      const nameEl = card.querySelector('.entity-result__title-text a span[aria-hidden="true"], .entity-result__title-text a');
-      const name = nameEl ? nameEl.innerText.trim() : '';
+      // Extract Name
+      const nameEl = card.querySelector('.entity-result__title-text a span[aria-hidden="true"], .entity-result__title-text a, a.app-aware-link span[aria-hidden="true"]');
+      let name = nameEl ? nameEl.innerText.trim() : '';
+      if (!name && linkEl) {
+        name = linkEl.innerText.split('\n')[0].trim();
+      }
 
-      const headlineEl = card.querySelector('.entity-result__primary-subtitle');
+      // Extract Headline/Role
+      const headlineEl = card.querySelector('.entity-result__primary-subtitle, div.t-14.t-black');
       const headline = headlineEl ? headlineEl.innerText.trim() : '';
 
-      const locationEl = card.querySelector('.entity-result__secondary-subtitle');
+      // Extract Location
+      const locationEl = card.querySelector('.entity-result__secondary-subtitle, div.t-14.t-black--light');
       const location = locationEl ? locationEl.innerText.trim() : '';
 
       if (name && name !== 'LinkedIn Member' && href) {
@@ -445,6 +463,19 @@ export async function startLinkedInLoop(customConfig = {}) {
         break;
       }
 
+      // 1. Detect current page from DOM pagination button with aria-current="true"
+      const currentPageFromDOM = await page.evaluate(() => {
+        const activeBtn = document.querySelector('button[aria-current="true"], button[aria-current="page"], li.artdeco-pagination__indicator--number.selected button');
+        if (activeBtn) {
+          const num = parseInt(activeBtn.innerText.trim(), 10);
+          return isNaN(num) ? null : num;
+        }
+        return null;
+      }).catch(() => null);
+
+      if (currentPageFromDOM) {
+        pageNum = currentPageFromDOM;
+      }
       linkedinBotState.stats.currentPage = pageNum;
       logLinkedInActivity(`📄 Scanning Search Results Page ${pageNum}...`);
 
@@ -473,12 +504,12 @@ export async function startLinkedInLoop(customConfig = {}) {
         break;
       }
 
-      // Locate and click "Next" pagination button
-      const nextBtn = await page.$('button[aria-label="Next"], button:has-text("Next"), .artdeco-pagination__button--next');
+      // 2. Locate and click "Next" pagination button using data-testid="pagination-controls-next-button-visible"
+      const nextBtn = await page.$('button[data-testid="pagination-controls-next-button-visible"], button[aria-label="Next"], button:has-text("Next"), .artdeco-pagination__button--next');
       const isNextDisabled = nextBtn ? await nextBtn.evaluate(el => el.disabled || el.getAttribute('aria-disabled') === 'true').catch(() => true) : true;
 
       if (nextBtn && !isNextDisabled) {
-        logLinkedInActivity(`⏭️ Clicking Next page (Page ${pageNum} -> ${pageNum + 1})...`);
+        logLinkedInActivity(`⏭️ Clicking Next button (Page ${pageNum} -> ${pageNum + 1})...`);
         await nextBtn.scrollIntoViewIfNeeded().catch(() => {});
         await nextBtn.click().catch(() => {});
         await page.waitForLoadState('domcontentloaded').catch(() => {});
