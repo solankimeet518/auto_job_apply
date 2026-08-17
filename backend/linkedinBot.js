@@ -82,63 +82,159 @@ async function checkLinkedInLogin(page) {
 }
 
 /**
- * Applies search filters: keywords, People category, 2nd & 3rd connections, and location.
+ * Performs interactive search from home feed and applies People, Location, Connections, and Verified filters.
  */
 async function applySearchAndFilters(page, config) {
   const keywords = config.keywords || 'Software Engineer Recruiter';
-  logLinkedInActivity(`🔎 Searching LinkedIn People for: "${keywords}"...`);
+  logLinkedInActivity(`🌐 Navigating to LinkedIn Home Feed...`);
 
-  // Build targeted LinkedIn people search query with network connection parameters
-  const networkParams = [];
-  if (config.network2nd !== false) networkParams.push('S'); // 2nd degree
-  if (config.network3rd !== false) networkParams.push('O'); // 3rd+ degree
+  await page.goto('https://www.linkedin.com/feed/', { waitUntil: 'domcontentloaded' }).catch(() => {});
+  await page.waitForTimeout(3000);
 
-  let searchUrl = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(keywords)}`;
-  if (networkParams.length > 0) {
-    searchUrl += `&network=${encodeURIComponent(JSON.stringify(networkParams))}`;
+  // 1. Search input on top nav bar
+  logLinkedInActivity(`✍️ Typing search query: "${keywords}" into search input...`);
+  const searchInput = await page.$('input[data-testid="typeahead-input"], input.search-global-typeahead__input, input[placeholder*="Search"]');
+  if (searchInput) {
+    await searchInput.click().catch(() => {});
+    await searchInput.fill(keywords);
+    await page.waitForTimeout(600);
+    await page.keyboard.press('Enter');
+    logLinkedInActivity('🔍 Pressed Enter on search input. Waiting for results...');
+    await page.waitForLoadState('domcontentloaded').catch(() => {});
+    await page.waitForTimeout(3000);
+  } else {
+    // Fallback direct search if top nav input is not found
+    logLinkedInActivity(`ℹ️ Typeahead input not found directly. Navigating to search results...`);
+    await page.goto(`https://www.linkedin.com/search/results/all/?keywords=${encodeURIComponent(keywords)}`, { waitUntil: 'domcontentloaded' }).catch(() => {});
+    await page.waitForTimeout(3000);
   }
 
-  logLinkedInActivity(`🌐 Navigating to search URL: ${searchUrl}`);
-  await page.goto(searchUrl, { waitUntil: 'domcontentloaded' }).catch(() => {});
-  await page.waitForTimeout(3500);
+  // 2. Click on label/button with text 'People'
+  logLinkedInActivity(`👥 Selecting "People" filter button/label...`);
+  const peopleFilter = await page.$('button:has-text("People"), label:has-text("People"), a:has-text("People"), ul.search-reusables__pill-filter-list li button:has-text("People")');
+  if (peopleFilter) {
+    await peopleFilter.click().catch(() => {});
+    await page.waitForLoadState('domcontentloaded').catch(() => {});
+    await page.waitForTimeout(3000);
+    logLinkedInActivity('✅ Switched to "People" search view.');
+  }
 
-  // Apply location filter if specified and not empty
+  // 3. Apply Location Filter
   if (config.location && config.location.trim().length > 0) {
     try {
-      logLinkedInActivity(`📍 Applying Location filter for: "${config.location}"...`);
-      const locBtn = await page.$('button[id*="locations"], button:has-text("Locations"), button[aria-label*="Locations filter"]');
+      logLinkedInActivity(`📍 Opening Location filter for: "${config.location}"...`);
+      const locBtn = await page.$('button:has-text("Locations"), button:has-text("Location"), label:has-text("Locations"), label:has-text("Location"), button[aria-label*="Locations filter"]');
       if (locBtn) {
         await locBtn.click().catch(() => {});
-        await page.waitForTimeout(1000);
+        await page.waitForTimeout(1200);
 
-        const locInput = await page.$('input[placeholder*="Add a location"], input[aria-label*="Add a location"]');
+        // Search location in input with data-testid="typeahead-input" and placeholder="Add a location"
+        const locInput = await page.$('input[data-testid="typeahead-input"][placeholder*="Add a location"], input[placeholder*="Add a location"], input[aria-label*="Add a location"]');
         if (locInput) {
+          await locInput.click().catch(() => {});
           await locInput.fill(config.location.trim());
           await page.waitForTimeout(1500);
-          
-          // Select first autocomplete dropdown suggestion
-          const firstOption = await page.$('div[role="listbox"] div[role="option"], .basic-typeahead__selectable-list li');
+
+          // Select first suggestion option
+          const firstOption = await page.$('div[role="listbox"] div[role="option"], .basic-typeahead__selectable-list li, div.basic-typeahead__selectable');
           if (firstOption) {
             await firstOption.click().catch(() => {});
-            await page.waitForTimeout(500);
+            await page.waitForTimeout(600);
+          } else {
+            await page.keyboard.press('ArrowDown').catch(() => {});
+            await page.keyboard.press('Enter').catch(() => {});
+            await page.waitForTimeout(600);
           }
         }
 
-        // Click "Show results" button inside filter dropdown
-        const applyBtn = await page.$('button[data-control-name="filter_show_results"], button:has-text("Show results"), button[aria-label*="Apply current filter"]');
-        if (applyBtn) {
-          await applyBtn.click().catch(() => {});
+        // Click "Show results" button inside dropdown
+        const showResultsBtn = await page.$('button[data-control-name="filter_show_results"], button:has-text("Show results"), button[aria-label*="Apply current filter"]');
+        if (showResultsBtn) {
+          logLinkedInActivity('👉 Clicking "Show results" for Location filter...');
+          await showResultsBtn.click().catch(() => {});
+          await page.waitForLoadState('domcontentloaded').catch(() => {});
           await page.waitForTimeout(3000);
         }
       }
-    } catch (filterErr) {
-      logLinkedInActivity(`⚠️ Notice: Location filter UI interaction bypassed: ${filterErr.message}`);
+    } catch (locErr) {
+      logLinkedInActivity(`⚠️ Notice: Location filter step bypassed: ${locErr.message}`);
     }
   }
 
-  // Scroll page slightly to ensure search cards render
+  // 4. Connections Network Filter (click label '2nd' and label '3rd+')
+  try {
+    logLinkedInActivity('🔗 Applying Connection filters ("2nd" & "3rd+")...');
+    
+    // Check if Connections dropdown button needs to be opened
+    const connBtn = await page.$('button:has-text("Connections"), button[aria-label*="Connections filter"]');
+    if (connBtn) {
+      await connBtn.click().catch(() => {});
+      await page.waitForTimeout(1000);
+    }
+
+    // Click label with text '2nd'
+    const label2nd = await page.$('label:has-text("2nd"), span:has-text("2nd"), button:has-text("2nd")');
+    if (label2nd) {
+      logLinkedInActivity('👉 Clicking label "2nd"...');
+      await label2nd.click().catch(() => {});
+      await page.waitForTimeout(500);
+    }
+
+    // Click label with text '3rd+'
+    const label3rd = await page.$('label:has-text("3rd+"), span:has-text("3rd+"), button:has-text("3rd+")');
+    if (label3rd) {
+      logLinkedInActivity('👉 Clicking label "3rd+"...');
+      await label3rd.click().catch(() => {});
+      await page.waitForTimeout(500);
+    }
+
+    // If dropdown opened with "Show results", click it
+    const showConnResults = await page.$('div.artdeco-dropdown__content--is-open button:has-text("Show results"), button[data-control-name="filter_show_results"]:visible, button:has-text("Show results"):visible');
+    if (showConnResults) {
+      await showConnResults.click().catch(() => {});
+      await page.waitForLoadState('domcontentloaded').catch(() => {});
+      await page.waitForTimeout(2500);
+    }
+  } catch (connErr) {
+    logLinkedInActivity(`⚠️ Notice: Connections filter step bypassed: ${connErr.message}`);
+  }
+
+  // 5. Verified Filter (click label/button with text 'Verified')
+  try {
+    logLinkedInActivity('🛡️ Checking for "Verified" filter...');
+    let verifiedEl = await page.$('label:has-text("Verified"), button:has-text("Verified"), span:has-text("Verified")');
+    
+    if (!verifiedEl) {
+      // Check inside "All filters" if not visible directly in top filter pills
+      const allFiltersBtn = await page.$('button:has-text("All filters"), button[aria-label*="all filters"]');
+      if (allFiltersBtn) {
+        await allFiltersBtn.click().catch(() => {});
+        await page.waitForTimeout(1500);
+        verifiedEl = await page.$('label:has-text("Verified"), span:has-text("Verified")');
+      }
+    }
+
+    if (verifiedEl) {
+      logLinkedInActivity('👉 Clicking "Verified" filter...');
+      await verifiedEl.click().catch(() => {});
+      await page.waitForTimeout(500);
+
+      // Click "Show results" if inside modal or dropdown
+      const showVerifiedResults = await page.$('div[role="dialog"] button:has-text("Show results"), button:has-text("Show results"):visible');
+      if (showVerifiedResults) {
+        await showVerifiedResults.click().catch(() => {});
+        await page.waitForLoadState('domcontentloaded').catch(() => {});
+        await page.waitForTimeout(2500);
+      }
+    }
+  } catch (verErr) {
+    logLinkedInActivity(`⚠️ Notice: Verified filter step bypassed: ${verErr.message}`);
+  }
+
+  // Scroll down slightly to trigger lazy card rendering
   await page.evaluate(() => window.scrollBy(0, 400)).catch(() => {});
   await page.waitForTimeout(1500);
+  logLinkedInActivity('📋 Filters applied successfully. Ready to extract people profiles.');
 }
 
 /**
