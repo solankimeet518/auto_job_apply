@@ -320,13 +320,17 @@ async function processProfileConnection(context, person, config, profileData) {
     await profilePage.goto(person.url, { waitUntil: 'domcontentloaded' }).catch(() => {});
     await profilePage.waitForTimeout(3000);
 
-    // 1. Check for primary Connect button/link on profile top card
+    // 1. Check for primary Connect button/link on profile top card (supports <a ...><div>Connect</div></a>)
     let connectBtn = await profilePage.$(
-      'main button:has-text("Connect"), main a:has-text("Connect"), ' +
-      'div.ph5 button:has-text("Connect"), div.ph5 a:has-text("Connect"), ' +
-      '.pv-top-card button:has-text("Connect"), .pv-top-card a:has-text("Connect"), ' +
-      '.pvs-profile-actions button:has-text("Connect"), .pvs-profile-actions a:has-text("Connect"), ' +
-      'button[aria-label*="Invite"]:has-text("Connect"), a[aria-label*="Invite"], [aria-label*="to connect"]'
+      'main a:has(div:has-text("Connect")), main a div:has-text("Connect"), ' +
+      'main a:has-text("Connect"), main button:has-text("Connect"), ' +
+      'div.ph5 a:has(div:has-text("Connect")), div.ph5 a div:has-text("Connect"), ' +
+      'div.ph5 a:has-text("Connect"), div.ph5 button:has-text("Connect"), ' +
+      '.pv-top-card a:has(div:has-text("Connect")), .pv-top-card a div:has-text("Connect"), ' +
+      '.pv-top-card a:has-text("Connect"), .pv-top-card button:has-text("Connect"), ' +
+      '.pvs-profile-actions a:has(div:has-text("Connect")), .pvs-profile-actions a:has-text("Connect"), ' +
+      '.pvs-profile-actions button:has-text("Connect"), ' +
+      'a[aria-label*="Invite"], button[aria-label*="Invite"], [aria-label*="to connect"]'
     );
     
     // 2. If not found directly, check the "More" dropdown
@@ -343,14 +347,19 @@ async function processProfileConnection(context, person, config, profileData) {
         await moreBtn.click().catch(() => {});
         await profilePage.waitForTimeout(1200);
 
-        // Find "Connect" inside the opened dropdown menu (supports <a>, <div>, <span>, <li>, [role="button"], [role="menuitem"])
+        // Find "Connect" inside the opened dropdown menu (supports <a ...><div>Connect</div></a>, <div>, <span>, <li>, [role="button"], [role="menuitem"])
         connectBtn = await profilePage.$(
-          '.artdeco-dropdown__content--is-open div[role="button"]:has-text("Connect"), ' +
+          '.artdeco-dropdown__content--is-open a:has(div:has-text("Connect")), ' +
+          '.artdeco-dropdown__content--is-open a div:has-text("Connect"), ' +
           '.artdeco-dropdown__content--is-open a:has-text("Connect"), ' +
+          '.artdeco-dropdown__content--is-open div[role="button"]:has(div:has-text("Connect")), ' +
+          '.artdeco-dropdown__content--is-open div[role="button"]:has-text("Connect"), ' +
+          '.artdeco-dropdown__content--is-open div.artdeco-dropdown__item:has-text("Connect"), ' +
           '.artdeco-dropdown__content--is-open li:has-text("Connect"), ' +
           '.artdeco-dropdown__content--is-open span:has-text("Connect"), ' +
-          '.artdeco-dropdown__content--is-open div.artdeco-dropdown__item:has-text("Connect"), ' +
           '.artdeco-dropdown__content--is-open [aria-label*="Invite"], ' +
+          'div[role="menu"] a:has(div:has-text("Connect")), ' +
+          'div[role="menu"] a div:has-text("Connect"), ' +
           'div[role="menu"] div[role="menuitem"]:has-text("Connect"), ' +
           'div[role="menu"] [role="button"]:has-text("Connect")'
         );
@@ -364,10 +373,15 @@ async function processProfileConnection(context, person, config, profileData) {
       return false;
     }
 
-    // 3. Click Connect button or link
+    // 3. Click Connect button or link (with parent link fallback)
     logLinkedInActivity(`👉 Clicking "Connect" for ${person.name}...`);
     await connectBtn.scrollIntoViewIfNeeded().catch(() => {});
-    await connectBtn.click().catch(() => {});
+    await connectBtn.click({ timeout: 5000 }).catch(async () => {
+      await profilePage.evaluate((el) => {
+        const target = el.closest('a, button, [role="button"]') || el;
+        target.click();
+      }, connectBtn).catch(() => {});
+    });
     await profilePage.waitForTimeout(1500);
 
     // 4. Handle "Add a note" invitation modal dialog
