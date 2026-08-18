@@ -38,6 +38,33 @@ export default function LinkedInBotDashboard({ profile }) {
     }
   }, [profile]);
 
+  // Note Preview & Testing State
+  const [testRecipientName, setTestRecipientName] = useState('Anshuman Singh');
+  const [testRecipientRole, setTestRecipientRole] = useState('Technical Recruiter at Google');
+  const [previewNote, setPreviewNote] = useState('');
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  const handleGeneratePreview = async () => {
+    setPreviewLoading(true);
+    try {
+      const res = await api.previewLinkedInNote({
+        personName: testRecipientName || 'Anshuman Singh',
+        personRole: testRecipientRole || 'Technical Recruiter',
+        personCompany: 'Google',
+        targetJob: keywords || 'Software Engineer',
+        noteMode,
+        customTemplate,
+      });
+      if (res && res.note) {
+        setPreviewNote(res.note);
+      }
+    } catch (err) {
+      console.error('Failed to preview note:', err);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
   const logsEndRef = useRef(null);
 
   // Poll status from backend
@@ -387,6 +414,80 @@ export default function LinkedInBotDashboard({ profile }) {
                       {tag}
                     </span>
                   ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Interactive Note Tester / Preview Generator */}
+          <div style={{
+            background: 'rgba(10, 102, 194, 0.05)', border: '1px dashed rgba(10, 102, 194, 0.3)',
+            borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Sparkles size={16} color="#38BDF8" />
+                <span style={{ fontSize: '12px', fontWeight: '800', color: '#38BDF8', textTransform: 'uppercase' }}>
+                  🧪 Test Note Output Before Starting
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleGeneratePreview}
+                disabled={previewLoading}
+                style={{
+                  background: 'linear-gradient(135deg, #0A66C2 0%, #004182 100%)',
+                  color: '#fff', border: 'none', borderRadius: '6px', padding: '6px 12px',
+                  fontSize: '12px', fontWeight: '700', cursor: previewLoading ? 'not-allowed' : 'pointer',
+                  opacity: previewLoading ? 0.7 : 1, display: 'flex', alignItems: 'center', gap: '4px'
+                }}
+              >
+                {previewLoading ? 'Generating...' : '⚡ Generate AI Preview'}
+              </button>
+            </div>
+
+            {/* Test Sample Inputs */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <input
+                type="text"
+                value={testRecipientName}
+                onChange={e => setTestRecipientName(e.target.value)}
+                placeholder="Sample Name (e.g. Anshuman Singh)"
+                style={{
+                  padding: '6px 10px', fontSize: '12px', borderRadius: '6px',
+                  background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)'
+                }}
+              />
+              <input
+                type="text"
+                value={testRecipientRole}
+                onChange={e => setTestRecipientRole(e.target.value)}
+                placeholder="Sample Role (e.g. Tech Recruiter)"
+                style={{
+                  padding: '6px 10px', fontSize: '12px', borderRadius: '6px',
+                  background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)'
+                }}
+              />
+            </div>
+
+            {/* Rendered Preview Box */}
+            {previewNote && (
+              <div style={{
+                background: '#0B1120', border: '1px solid rgba(56, 189, 248, 0.3)',
+                borderRadius: '8px', padding: '12px', position: 'relative'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Generated Note for {testRecipientName}:</span>
+                  <span style={{
+                    fontSize: '11px', fontWeight: '700', padding: '2px 6px', borderRadius: '4px',
+                    background: previewNote.length <= 280 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                    color: previewNote.length <= 280 ? '#10B981' : '#EF4444'
+                  }}>
+                    {previewNote.length} / 280 chars
+                  </span>
+                </div>
+                <div style={{ fontSize: '13px', color: '#E2E8F0', lineHeight: '1.5', whiteSpace: 'pre-wrap', fontStyle: 'italic' }}>
+                  "{previewNote}"
                 </div>
               </div>
             )}

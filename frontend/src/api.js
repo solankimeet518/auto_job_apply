@@ -131,4 +131,14 @@ export const api = {
       method: 'POST',
     });
   },
+
+  /**
+   * Preview a generated LinkedIn note with Ollama or template.
+   */
+  async previewLinkedInNote(data = {}) {
+    return apiFetch('/api/linkedin/preview-note', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
 };

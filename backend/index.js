@@ -220,6 +220,20 @@ const server = Bun.serve({
         return getCorsResponse({ status: 'stopped' });
       }
 
+      // POST /api/linkedin/preview-note -> Generate a test note with Ollama or template
+      if (url.pathname === '/api/linkedin/preview-note' && req.method === 'POST') {
+        const body = await req.json().catch(() => ({}));
+        const { generateLinkedInNote } = await import('./queryEngine.js');
+        const note = await generateLinkedInNote({
+          personName: body.personName || 'Anshuman Singh',
+          personRole: body.personRole || 'Technical Recruiter',
+          personCompany: body.personCompany || 'Google',
+          targetJob: body.targetJob || body.keywords || 'Software Engineer',
+          customTemplate: body.noteMode === 'template' ? (body.customTemplate || '') : '',
+        });
+        return getCorsResponse({ note, length: note.length });
+      }
+
       return getCorsResponse({ error: 'Endpoint Not Found' }, 404);
     } catch (err) {
       console.error(err);
