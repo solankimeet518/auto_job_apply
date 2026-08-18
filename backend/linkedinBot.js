@@ -248,39 +248,48 @@ async function applySearchAndFilters(page, config, profileData = {}) {
 
   // 4. Connections Network Filter (click label '2nd' and label '3rd+')
   try {
-    logLinkedInActivity('🔗 Applying Connection filters ("2nd" & "3rd+")...');
-    
-    // Check if Connections dropdown button needs to be opened
-    const connBtn = await page.$('button:has-text("Connections"), button[aria-label*="Connections filter"]');
-    if (connBtn) {
-      await connBtn.click().catch(() => {});
-      await page.waitForTimeout(1000);
-    }
+    const apply2nd = config.network2nd !== false;
+    const apply3rd = config.network3rd !== false;
 
-    // Click label with text '2nd'
-    const label2nd = await page.$('label:has-text("2nd"), span:has-text("2nd"), button:has-text("2nd")');
-    if (label2nd) {
-      logLinkedInActivity('👉 Clicking label "2nd"...');
-      await label2nd.click().catch(() => {});
-      await page.waitForLoadState('domcontentloaded').catch(() => {});
-      await page.waitForTimeout(1500);
-    }
+    if (apply2nd || apply3rd) {
+      logLinkedInActivity(`🔗 Applying Connection filters (${apply2nd ? '"2nd" ' : ''}${apply3rd ? '"3rd+"' : ''})...`);
+      
+      // Check if Connections dropdown button needs to be opened
+      const connBtn = await page.$('button:has-text("Connections"), button[aria-label*="Connections filter"]');
+      if (connBtn) {
+        await connBtn.click().catch(() => {});
+        await page.waitForTimeout(1000);
+      }
 
-    // Click label with text '3rd+' or '3rd'
-    const label3rd = await page.$(
-      'label:has-text("3rd+"), label:has-text("3rd"), ' +
-      'span:has-text("3rd+"), span:has-text("3rd"), ' +
-      'button:has-text("3rd+"), button:has-text("3rd")'
-    );
-    if (label3rd) {
-      logLinkedInActivity('👉 Clicking label "3rd+" / "3rd"...');
-      await label3rd.click().catch(() => {});
-      await page.waitForLoadState('domcontentloaded').catch(() => {});
-      await page.waitForTimeout(1500);
-    }
+      // Click label with text '2nd'
+      if (apply2nd) {
+        const label2nd = await page.$('label:has-text("2nd"), span:has-text("2nd"), button:has-text("2nd")');
+        if (label2nd) {
+          logLinkedInActivity('👉 Clicking label "2nd"...');
+          await label2nd.click().catch(() => {});
+          await page.waitForLoadState('domcontentloaded').catch(() => {});
+          await page.waitForTimeout(1500);
+        }
+      }
 
-    // If dropdown opened with "Show results", click it
-    await clickShowResults(page, 'Connections filter');
+      // Click label with text '3rd+' or '3rd'
+      if (apply3rd) {
+        const label3rd = await page.$(
+          'label:has-text("3rd+"), label:has-text("3rd"), ' +
+          'span:has-text("3rd+"), span:has-text("3rd"), ' +
+          'button:has-text("3rd+"), button:has-text("3rd")'
+        );
+        if (label3rd) {
+          logLinkedInActivity('👉 Clicking label "3rd+" / "3rd"...');
+          await label3rd.click().catch(() => {});
+          await page.waitForLoadState('domcontentloaded').catch(() => {});
+          await page.waitForTimeout(1500);
+        }
+      }
+
+      // If dropdown opened with "Show results", click it
+      await clickShowResults(page, 'Connections filter');
+    }
   } catch (connErr) {
     logLinkedInActivity(`⚠️ Notice: Connections filter step bypassed: ${connErr.message}`);
   }
