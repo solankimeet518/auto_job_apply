@@ -619,12 +619,13 @@ export default function LinkedInBotDashboard({ profile }) {
                           <label style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
                             Desired Note Output (Output):
                           </label>
-                          <span style={{ fontSize: '10px', color: newNote.length <= 260 ? '#10B981' : '#EF4444' }}>
-                            {newNote.length} / 260 chars
+                          <span style={{ fontSize: '10px', color: newNote.length <= 500 ? '#10B981' : '#EF4444' }}>
+                            {newNote.length} / 500 chars
                           </span>
                         </div>
                         <textarea
-                          rows="2"
+                          rows="3"
+                          maxLength={500}
                           value={newNote}
                           onChange={e => setNewNote(e.target.value)}
                           placeholder="e.g. Hi Priya, I noticed Stripe's impressive work in payments and would love to connect. I'm a Backend Engineer keen to follow your team's updates! Best, Meet"
