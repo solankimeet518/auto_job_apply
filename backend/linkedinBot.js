@@ -320,18 +320,42 @@ async function processProfileConnection(context, person, config, profileData) {
     await profilePage.goto(person.url, { waitUntil: 'domcontentloaded' }).catch(() => {});
     await profilePage.waitForTimeout(3000);
 
-    // 1. Check for primary Connect button/link on profile top card (supports <a ...><div>Connect</div></a>)
-    let connectBtn = await profilePage.$(
-      'main a:has(div:has-text("Connect")), main a div:has-text("Connect"), ' +
-      'main a:has-text("Connect"), main button:has-text("Connect"), ' +
-      'div.ph5 a:has(div:has-text("Connect")), div.ph5 a div:has-text("Connect"), ' +
-      'div.ph5 a:has-text("Connect"), div.ph5 button:has-text("Connect"), ' +
-      '.pv-top-card a:has(div:has-text("Connect")), .pv-top-card a div:has-text("Connect"), ' +
-      '.pv-top-card a:has-text("Connect"), .pv-top-card button:has-text("Connect"), ' +
-      '.pvs-profile-actions a:has(div:has-text("Connect")), .pvs-profile-actions a:has-text("Connect"), ' +
-      '.pvs-profile-actions button:has-text("Connect"), ' +
-      'a[aria-label*="Invite"], button[aria-label*="Invite"], [aria-label*="to connect"]'
+    // 1. Check for primary Connect button/link on profile top card (strictly excluding mutual connection links)
+    let connectBtn = null;
+    const candidates = await profilePage.$$(
+      'main a.artdeco-button, main button.artdeco-button, ' +
+      '.pv-top-card a, .pv-top-card button, ' +
+      '.pvs-profile-actions a, .pvs-profile-actions button, ' +
+      'div.ph5 a.artdeco-button, div.ph5 button.artdeco-button, ' +
+      'a[aria-label*="Invite"], button[aria-label*="Invite"]'
     );
+
+    for (const el of candidates) {
+      const match = await el.evaluate(node => {
+        const text = (node.innerText || '').trim();
+        const ariaLabel = (node.getAttribute('aria-label') || '').trim().toLowerCase();
+        const textLower = text.toLowerCase();
+        
+        // Strict exclusion of mutual connection text links or connection count links
+        if (textLower.includes('mutual') || textLower.includes('connections') || ariaLabel.includes('mutual')) {
+          return false;
+        }
+
+        // Must be an action button/link with "Connect" or "Invite ... to connect"
+        const isActionConnect = text === 'Connect' || 
+                                (textLower.startsWith('connect') && !textLower.includes('connection')) ||
+                                (ariaLabel.includes('invite') && ariaLabel.includes('connect')) ||
+                                (ariaLabel.includes('to connect') && !ariaLabel.includes('mutual'));
+
+        const isVisible = node.offsetWidth > 0 && node.offsetHeight > 0;
+        return isActionConnect && isVisible;
+      }).catch(() => false);
+
+      if (match) {
+        connectBtn = el;
+        break;
+      }
+    }
     
     // 2. If not found directly, check the "More" dropdown
     if (!connectBtn) {
@@ -347,22 +371,39 @@ async function processProfileConnection(context, person, config, profileData) {
         await moreBtn.click().catch(() => {});
         await profilePage.waitForTimeout(1200);
 
-        // Find "Connect" inside the opened dropdown menu (supports <a ...><div>Connect</div></a>, <div>, <span>, <li>, [role="button"], [role="menuitem"])
-        connectBtn = await profilePage.$(
-          '.artdeco-dropdown__content--is-open a:has(div:has-text("Connect")), ' +
-          '.artdeco-dropdown__content--is-open a div:has-text("Connect"), ' +
-          '.artdeco-dropdown__content--is-open a:has-text("Connect"), ' +
-          '.artdeco-dropdown__content--is-open div[role="button"]:has(div:has-text("Connect")), ' +
-          '.artdeco-dropdown__content--is-open div[role="button"]:has-text("Connect"), ' +
-          '.artdeco-dropdown__content--is-open div.artdeco-dropdown__item:has-text("Connect"), ' +
-          '.artdeco-dropdown__content--is-open li:has-text("Connect"), ' +
-          '.artdeco-dropdown__content--is-open span:has-text("Connect"), ' +
-          '.artdeco-dropdown__content--is-open [aria-label*="Invite"], ' +
-          'div[role="menu"] a:has(div:has-text("Connect")), ' +
-          'div[role="menu"] a div:has-text("Connect"), ' +
-          'div[role="menu"] div[role="menuitem"]:has-text("Connect"), ' +
-          'div[role="menu"] [role="button"]:has-text("Connect")'
+        // Find "Connect" inside the opened dropdown menu (excluding mutual links)
+        const dropdownCandidates = await profilePage.$$(
+          '.artdeco-dropdown__content--is-open a, ' +
+          '.artdeco-dropdown__content--is-open div[role="button"], ' +
+          '.artdeco-dropdown__content--is-open div.artdeco-dropdown__item, ' +
+          '.artdeco-dropdown__content--is-open li, ' +
+          'div[role="menu"] a, div[role="menu"] div[role="menuitem"], div[role="menu"] [role="button"]'
         );
+
+        for (const item of dropdownCandidates) {
+          const isItemConnect = await item.evaluate(node => {
+            const text = (node.innerText || '').trim();
+            const ariaLabel = (node.getAttribute('aria-label') || '').trim().toLowerCase();
+            const textLower = text.toLowerCase();
+            
+            if (textLower.includes('mutual') || textLower.includes('connections') || ariaLabel.includes('mutual')) {
+              return false;
+            }
+
+            const isActionConnect = text === 'Connect' || 
+                                    (textLower.startsWith('connect') && !textLower.includes('connection')) ||
+                                    (ariaLabel.includes('invite') && ariaLabel.includes('connect')) ||
+                                    (ariaLabel.includes('to connect') && !ariaLabel.includes('mutual'));
+
+            const isVisible = node.offsetWidth > 0 && node.offsetHeight > 0;
+            return isActionConnect && isVisible;
+          }).catch(() => false);
+
+          if (isItemConnect) {
+            connectBtn = item;
+            break;
+          }
+        }
       }
     }
 
