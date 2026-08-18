@@ -142,7 +142,8 @@ export default function LinkedInBotDashboard({ profile }) {
     }
   };
 
-  const logsEndRef = useRef(null);
+  const terminalBodyRef = useRef(null);
+  const isUserScrolledUp = useRef(false);
 
   // Poll status from backend
   useEffect(() => {
@@ -171,12 +172,18 @@ export default function LinkedInBotDashboard({ profile }) {
     };
   }, []);
 
-  // Auto-scroll logs
+  // Internal Terminal-only auto-scroll (never steals window/page scroll)
   useEffect(() => {
-    if (logsEndRef.current) {
-      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (terminalBodyRef.current && !isUserScrolledUp.current) {
+      terminalBodyRef.current.scrollTop = terminalBodyRef.current.scrollHeight;
     }
   }, [logs]);
+
+  const handleTerminalScroll = (e) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.target;
+    // If user scrolled up more than 40px from bottom, pause terminal auto-scroll
+    isUserScrolledUp.current = scrollHeight - scrollTop - clientHeight > 40;
+  };
 
   const handleStart = async () => {
     setLoadingAction(true);
@@ -793,10 +800,14 @@ export default function LinkedInBotDashboard({ profile }) {
             <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{logs.length} events logged</span>
           </div>
 
-          <div style={{
-            flex: 1, overflowY: 'auto', fontFamily: 'monospace', fontSize: '12px',
-            lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '6px'
-          }}>
+          <div
+            ref={terminalBodyRef}
+            onScroll={handleTerminalScroll}
+            style={{
+              flex: 1, overflowY: 'auto', fontFamily: 'monospace', fontSize: '12px',
+              lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '6px'
+            }}
+          >
             {logs.length === 0 ? (
               <div style={{ color: 'var(--text-muted)', textAlign: 'center', marginTop: '100px' }}>
                 <Users size={32} style={{ opacity: 0.3, marginBottom: '8px' }} />
@@ -818,7 +829,6 @@ export default function LinkedInBotDashboard({ profile }) {
                 );
               })
             )}
-            <div ref={logsEndRef} />
           </div>
         </div>
       </div>
