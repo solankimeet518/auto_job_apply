@@ -185,9 +185,11 @@ export async function generateLinkedInNote({
       .replace(/\{myName\}/gi, myName);
     
     if (note.length > 280) {
-      note = note.substring(0, 277) + '...';
+      const truncated = note.substring(0, 275);
+      const lastSpace = truncated.lastIndexOf(' ');
+      note = (lastSpace > 140 ? truncated.substring(0, lastSpace) : truncated).trim();
     }
-    return note;
+    return note.replace(/\s*\.{2,}\s*$/g, '').trim();
   }
 
   // 2. Default fallback note in case Ollama is unavailable
@@ -261,7 +263,8 @@ CRITICAL RULES:
 1. Output MUST be between 140 and 260 characters (strict LinkedIn connection limit).
 2. Start with "Hi ${firstName}," and sign off with "Best, ${myName}" or "– ${myName}".
 3. NEVER leave placeholders like "[Company Name]", "[Your Name]", or "[Role]". Use the real names or natural phrasing.
-4. Output ONLY the final note message text. Do NOT include quotes, explanations, markdown, or greetings outside the message.`;
+4. The note MUST be a complete, fully finished thought. NEVER end with "..." or leave incomplete sentences.
+5. Output ONLY the final note message text. Do NOT include quotes, explanations, markdown, or greetings outside the message.`;
 
     const response = await model.invoke(prompt);
     let note = response.content.trim();
@@ -282,12 +285,24 @@ CRITICAL RULES:
       .replace(/\[Target\s+Job\]/gi, myJob)
       .replace(/\[Role\]/gi, myJob);
 
+    // Strip any trailing ellipsis or multiple dots produced by the model
+    note = note.replace(/\s*\.{2,}\s*$/g, '').replace(/\s*…\s*$/g, '').trim();
+
     if (!note || note.length < 10) {
       return fallbackNote;
     }
 
+    // If note exceeds 280 characters, trim at the last clean sentence or word boundary without '...'
     if (note.length > 280) {
-      note = note.substring(0, 277) + '...';
+      const truncated = note.substring(0, 275);
+      const lastSentenceEnd = Math.max(truncated.lastIndexOf('.'), truncated.lastIndexOf('!'));
+      if (lastSentenceEnd > 140) {
+        note = truncated.substring(0, lastSentenceEnd + 1).trim();
+      } else {
+        const lastSpace = truncated.lastIndexOf(' ');
+        note = (lastSpace > 140 ? truncated.substring(0, lastSpace) : truncated).trim();
+      }
+      note = note.replace(/\s*\.{2,}\s*$/g, '').replace(/\s*…\s*$/g, '').trim();
     }
 
     return note;
