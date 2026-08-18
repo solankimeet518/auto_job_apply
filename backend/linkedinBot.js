@@ -83,29 +83,68 @@ async function checkLinkedInLogin(page) {
 
 /**
  * Clicks the "Show results" action link / button across dropdowns, modals, or page filters.
- * Robustly matches <a> links, <button> tags, and custom LinkedIn attributes.
+ * Matches dynamic texts like "Show 1,200 results", "Show 10+ results", "Show results",
+ * <a> links, <button> tags, and custom LinkedIn attributes.
  */
 async function clickShowResults(page, contextLabel = '') {
   try {
-    const showResultsEl = await page.$(
-      'a:has-text("Show results"), button:has-text("Show results"), ' +
-      'a[data-control-name="filter_show_results"], button[data-control-name="filter_show_results"], ' +
-      'a[aria-label*="Show results"], button[aria-label*="Show results"], ' +
-      'a[aria-label*="Apply current filter"], button[aria-label*="Apply current filter"], ' +
-      'div.artdeco-dropdown__content--is-open a, div.artdeco-dropdown__content--is-open button, ' +
-      'div[role="dialog"] a.artdeco-button--primary, div[role="dialog"] button.artdeco-button--primary'
-    );
+    const selectors = [
+      'div.artdeco-dropdown__content--is-open a[data-control-name="filter_show_results"]',
+      'div.artdeco-dropdown__content--is-open button[data-control-name="filter_show_results"]',
+      'div.artdeco-dropdown__content--is-open a.artdeco-button--primary',
+      'div.artdeco-dropdown__content--is-open button.artdeco-button--primary',
+      'div[role="dialog"] a.artdeco-button--primary',
+      'div[role="dialog"] button.artdeco-button--primary',
+      'a[data-control-name="filter_show_results"]:visible',
+      'button[data-control-name="filter_show_results"]:visible',
+      'a.artdeco-button--primary:visible',
+      'button.artdeco-button--primary:visible',
+      'a[aria-label*="results"]:visible',
+      'button[aria-label*="results"]:visible',
+      'a[aria-label*="Apply current filter"]:visible',
+      'button[aria-label*="Apply current filter"]:visible',
+      'div.artdeco-dropdown__content--is-open a',
+      'div.artdeco-dropdown__content--is-open button'
+    ];
 
-    if (showResultsEl) {
-      logLinkedInActivity(`👉 Clicking "Show results" link/button${contextLabel ? ` (${contextLabel})` : ''}...`);
-      await showResultsEl.click().catch(() => {});
-      // Fallback click dispatch if standard click doesn't trigger navigation
-      await showResultsEl.evaluate(node => node.click()).catch(() => {});
-      await page.waitForLoadState('domcontentloaded').catch(() => {});
-      await page.waitForTimeout(2500);
-      return true;
+    for (const sel of selectors) {
+      const elements = await page.$$(sel);
+      for (const el of elements) {
+        const isMatch = await el.evaluate(node => {
+          const text = (node.innerText || '').toLowerCase().trim();
+          const aria = (node.getAttribute('aria-label') || '').toLowerCase().trim();
+          const isVisible = node.offsetWidth > 0 && node.offsetHeight > 0;
+          
+          if (!isVisible) return false;
+          
+          // Must contain "result", "show", "apply" or have data-control-name="filter_show_results"
+          const hasShowResultsText = text.includes('result') || text.includes('show') || text.includes('apply');
+          const hasShowResultsAria = aria.includes('result') || aria.includes('apply') || aria.includes('show');
+          const isFilterControl = node.getAttribute('data-control-name') === 'filter_show_results' || 
+                                  node.classList.contains('artdeco-button--primary');
+          
+          // Exclude reset / cancel / clear buttons
+          if (text.includes('reset') || text.includes('cancel') || text.includes('clear')) {
+            return false;
+          }
+
+          return isFilterControl || hasShowResultsText || hasShowResultsAria;
+        }).catch(() => false);
+
+        if (isMatch) {
+          logLinkedInActivity(`👉 Clicking "Show results" link/button${contextLabel ? ` (${contextLabel})` : ''}...`);
+          await el.scrollIntoViewIfNeeded().catch(() => {});
+          await el.click().catch(() => {});
+          await el.evaluate(node => node.click()).catch(() => {});
+          await page.waitForLoadState('domcontentloaded').catch(() => {});
+          await page.waitForTimeout(2500);
+          return true;
+        }
+      }
     }
-  } catch (_) {}
+  } catch (err) {
+    logLinkedInActivity(`⚠️ Notice: Click "Show results" notice: ${err.message}`);
+  }
   return false;
 }
 
@@ -157,27 +196,45 @@ async function applySearchAndFilters(page, config, profileData = {}) {
   if (targetLocation && targetLocation.length > 0) {
     try {
       logLinkedInActivity(`📍 Opening Location filter for target location: "${targetLocation}"...`);
-      const locBtn = await page.$('button:has-text("Locations"), button:has-text("Location"), label:has-text("Locations"), label:has-text("Location"), button[aria-label*="Locations filter"]');
+      const locBtn = await page.$(
+        'button:has-text("Locations"), button:has-text("Location"), ' +
+        'label:has-text("Locations"), label:has-text("Location"), ' +
+        'button[aria-label*="Locations filter"], button[aria-label*="Location filter"]'
+      );
+
       if (locBtn) {
         await locBtn.click().catch(() => {});
         await page.waitForTimeout(1200);
 
         // Search location in input with data-testid="typeahead-input" and placeholder="Add a location"
-        const locInput = await page.$('input[data-testid="typeahead-input"][placeholder*="Add a location"], input[placeholder*="Add a location"], input[aria-label*="Add a location"]');
+        const locInput = await page.$(
+          'input[data-testid="typeahead-input"][placeholder*="Add a location"], ' +
+          'input[placeholder*="Add a location"], input[aria-label*="Add a location"], ' +
+          'div.artdeco-dropdown__content--is-open input'
+        );
+
         if (locInput) {
           await locInput.click().catch(() => {});
           await locInput.fill(targetLocation);
           await page.waitForTimeout(1500);
 
           // Select first suggestion option
-          const firstOption = await page.$('div[role="listbox"] div[role="option"], .basic-typeahead__selectable-list li, div.basic-typeahead__selectable');
+          const firstOption = await page.$(
+            'div[role="listbox"] div[role="option"], ' +
+            '.basic-typeahead__selectable-list li, ' +
+            'div.basic-typeahead__selectable, ' +
+            '.search-typeahead-v2__hit, ' +
+            'div.artdeco-dropdown__content--is-open [role="option"]'
+          );
+
           if (firstOption) {
+            logLinkedInActivity(`👉 Selecting location suggestion option...`);
             await firstOption.click().catch(() => {});
-            await page.waitForTimeout(600);
+            await page.waitForTimeout(1000);
           } else {
             await page.keyboard.press('ArrowDown').catch(() => {});
             await page.keyboard.press('Enter').catch(() => {});
-            await page.waitForTimeout(600);
+            await page.waitForTimeout(1000);
           }
         }
 
