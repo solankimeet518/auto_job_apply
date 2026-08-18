@@ -250,7 +250,7 @@ CANDIDATE DETAILS:
 RECIPIENT DETAILS:
 - Recipient Name: ${personName}
 - Recipient Headline/Title: ${personRole || 'Professional'}
-- Recipient Company/Location: ${personCompany || ''}
+- Recipient Company: ${personCompany || ''}
 
 STYLE & TONE DIRECTIVE:
 - ${toneInstruction}
@@ -262,9 +262,10 @@ ${fewShotSection}
 CRITICAL RULES:
 1. Output MUST be between 140 and 260 characters (strict LinkedIn connection limit).
 2. Start with "Hi ${firstName}," and sign off with "Best, ${myName}" or "– ${myName}".
-3. NEVER leave placeholders like "[Company Name]", "[Your Name]", or "[Role]". Use the real names or natural phrasing.
-4. The note MUST be a complete, fully finished thought. NEVER end with "..." or leave incomplete sentences.
-5. Output ONLY the final note message text. Do NOT include quotes, explanations, markdown, or greetings outside the message.`;
+3. NEVER leave placeholders like "[Company Name]", "[Your Name]", "[Role]", or "[Recipient ...]". Use the real names or natural phrasing.
+4. DO NOT include URLs, website links, or "Portfolio: https..." text.
+5. The note MUST be a complete, fully finished thought. NEVER end with "..." or leave incomplete sentences.
+6. Output ONLY the final note message text. Do NOT include quotes, explanations, markdown, or greetings outside the message.`;
 
     const response = await model.invoke(prompt);
     let note = response.content.trim();
@@ -279,11 +280,16 @@ CRITICAL RULES:
 
     // Clean any accidental placeholder brackets if generated
     note = note
+      .replace(/\[Recipient[^\]]*\]/gi, personCompany || 'your team')
       .replace(/\[Company(?:\s+Name)?\]/gi, personCompany || 'your company')
       .replace(/\[Your\s+Name\]/gi, myName)
       .replace(/\[Candidate(?:\s+Name)?\]/gi, myName)
       .replace(/\[Target\s+Job\]/gi, myJob)
-      .replace(/\[Role\]/gi, myJob);
+      .replace(/\[Role\]/gi, myJob)
+      .replace(/\[[^\]]+\]/g, ''); // strip any remaining brackets
+
+    // Strip any accidental URLs or portfolio mentions
+    note = note.replace(/Portfolio:\s*\S*/gi, '').replace(/https?:\/\/\S+/gi, '').trim();
 
     // Strip any trailing ellipsis or multiple dots produced by the model
     note = note.replace(/\s*\.{2,}\s*$/g, '').replace(/\s*…\s*$/g, '').trim();
