@@ -188,34 +188,59 @@ export async function generateLinkedInNote({ personName = '', personRole = '', p
       temperature: 0.3,
     });
 
-    const prompt = `You are an AI assistant writing a short LinkedIn connection request note for a candidate.
+    const prompt = `You are an expert career assistant crafting personalized LinkedIn connection request notes for a candidate.
 
-Candidate Details:
-- Name: ${myName}
-- Target Role: ${myJob}
-- Summary/Skills: ${(profileData.summary || '').substring(0, 200)}
+CANDIDATE DETAILS:
+- Candidate Name: ${myName}
+- Candidate Target Role: ${myJob}
+- Core Skills/Summary: ${(profileData.summary || profileData.experience?.[0]?.title || '').substring(0, 150)}
 
-Recipient:
-- Name: ${personName}
-- Headline/Title: ${personRole}
-- Company: ${personCompany}
+RECIPIENT DETAILS:
+- Recipient Name: ${personName}
+- Recipient Headline/Title: ${personRole || 'Professional'}
+- Recipient Company/Location: ${personCompany || ''}
+
+FEW-SHOT EXAMPLES OF DESIRED ACCURATE OUTPUTS:
+
+Example 1 (Recruiter):
+Recipient: Anshuman Singh, Technical Recruiter at TechCorp
+Note:
+Hi Anshuman, I came across your profile and would love to connect. As a Software Engineer exploring new opportunities, I'd appreciate staying in touch regarding future engineering openings. Best, ${myName}
+
+Example 2 (No explicit company provided):
+Recipient: Raagavi Manikandan, Talent Acquisition Partner
+Note:
+Hi Raagavi, I'd love to connect! I'm a ${myJob} actively exploring relevant opportunities. I'd love to stay connected with your talent network for upcoming roles. Best, ${myName}
+
+Example 3 (Engineering Leader):
+Recipient: Sarah Connor, Engineering Manager
+Note:
+Hi Sarah, I noticed your work leading engineering teams and would love to connect. I'm a ${myJob} interested in following your team's insights and potential openings. Best, ${myName}
 
 CRITICAL RULES:
-1. The note MUST be under 260 characters (strict LinkedIn limit).
-2. Start with "Hi ${firstName},"
-3. Express interest in connecting and learning about potential ${myJob} opportunities or their work at ${personCompany || 'their company'}.
-4. Output ONLY the raw note text. No markdown, no quotes, no explanations.`;
+1. Output MUST be between 140 and 260 characters (strict LinkedIn connection limit).
+2. Start with "Hi ${firstName}," and sign off with "Best, ${myName}" or "– ${myName}".
+3. NEVER leave placeholders like "[Company Name]", "[Your Name]", or "[Role]". Use the real names or natural phrasing.
+4. Output ONLY the final note message text. Do NOT include quotes, explanations, markdown, or greetings outside the message.`;
 
     const response = await model.invoke(prompt);
     let note = response.content.trim();
 
-    // Clean formatting
+    // Clean formatting and remove surrounding quotes/code fences
     if (note.startsWith('"') && note.endsWith('"')) {
       note = note.slice(1, -1).trim();
     }
     if (note.startsWith("```")) {
       note = note.replace(/^```[a-z]*\n/i, "").replace(/\n```$/i, "").trim();
     }
+
+    // Clean any accidental placeholder brackets if generated
+    note = note
+      .replace(/\[Company(?:\s+Name)?\]/gi, personCompany || 'your company')
+      .replace(/\[Your\s+Name\]/gi, myName)
+      .replace(/\[Candidate(?:\s+Name)?\]/gi, myName)
+      .replace(/\[Target\s+Job\]/gi, myJob)
+      .replace(/\[Role\]/gi, myJob);
 
     if (!note || note.length < 10) {
       return fallbackNote;
