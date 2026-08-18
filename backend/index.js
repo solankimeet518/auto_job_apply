@@ -230,6 +230,10 @@ const server = Bun.serve({
           personCompany: body.personCompany || 'Google',
           targetJob: body.targetJob || body.keywords || 'Software Engineer',
           customTemplate: body.noteMode === 'template' ? (body.customTemplate || '') : '',
+          tone: body.tone || 'Professional',
+          customInstructions: body.customInstructions || '',
+          temperature: body.temperature || 0.3,
+          sampleExamples: body.sampleExamples || [],
         });
         return getCorsResponse({ note, length: note.length });
       }

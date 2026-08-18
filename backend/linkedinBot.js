@@ -439,13 +439,17 @@ async function processProfileConnection(context, person, config, profileData) {
         await addNoteBtn.click().catch(() => {});
         await profilePage.waitForTimeout(1000);
 
-        // 5. Generate personalized connection note
+        // 5. Generate personalized connection note with user fine-tuning & custom samples
         const note = await generateLinkedInNote({
           personName: person.name,
           personRole: person.headline,
           personCompany: person.location,
           targetJob: config.keywords,
           customTemplate: config.customTemplate,
+          tone: config.tone,
+          customInstructions: config.customInstructions,
+          temperature: config.temperature,
+          sampleExamples: config.sampleExamples || profileData.sampleExamples || [],
         });
 
         logLinkedInActivity(`✍️ Generated Note (${note.length} chars): "${note}"`);

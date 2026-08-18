@@ -146,9 +146,22 @@ Instructions:
  * @param {string} params.personCompany - Recipient's company.
  * @param {string} [params.targetJob] - Target job title.
  * @param {string} [params.customTemplate] - Optional template with {name}, {company}, {role}, {targetJob} placeholders.
+ * @param {string} [params.tone] - 'Professional' | 'Friendly & Casual' | 'Direct & Concise' | 'Technical Focus'.
+ * @param {string} [params.customInstructions] - Custom user guidance (e.g. 'Highlight React & Node.js').
+ * @param {number} [params.temperature] - Ollama model temperature (0.1 to 0.7).
  * @returns {Promise<string>} - The personalized connection note under 280 characters.
  */
-export async function generateLinkedInNote({ personName = '', personRole = '', personCompany = '', targetJob = '', customTemplate = '' }) {
+export async function generateLinkedInNote({
+  personName = '',
+  personRole = '',
+  personCompany = '',
+  targetJob = '',
+  customTemplate = '',
+  tone = 'Professional',
+  customInstructions = '',
+  temperature = 0.3,
+  sampleExamples = [],
+}) {
   const firstName = personName.trim().split(/\s+/)[0] || 'there';
 
   let profileData = {};
@@ -180,13 +193,50 @@ export async function generateLinkedInNote({ personName = '', personRole = '', p
   // 2. Default fallback note in case Ollama is unavailable
   const fallbackNote = `Hi ${firstName}, I came across your profile and would love to connect. I'm a ${myJob} exploring relevant opportunities and following your work!`;
 
-  // 3. Generate personalized note via Ollama
+  // 3. Generate personalized note via Ollama with fine-tuned parameters
   try {
+    const tempValue = Math.min(Math.max(Number(temperature) || 0.3, 0.0), 1.0);
     const model = new ChatOllama({
       baseUrl: config.ollama.baseUrl,
       model: config.ollama.model,
-      temperature: 0.3,
+      temperature: tempValue,
     });
+
+    const toneInstruction = {
+      'Professional': 'Maintain a polished, respectful, and career-focused professional tone.',
+      'Friendly & Casual': 'Use a warm, friendly, conversational, and approachable tone.',
+      'Direct & Concise': 'Be extremely concise and punchy. Aim for under 180 characters.',
+      'Technical Focus': 'Highlight interest in software engineering architecture, scalable systems, and tech stack.',
+    }[tone] || 'Maintain a polished, respectful, and career-focused professional tone.';
+
+    const userExtraPrompt = customInstructions && customInstructions.trim().length > 0
+      ? `\nUSER FINE-TUNING INSTRUCTIONS:\n- ${customInstructions.trim()}\n`
+      : '';
+
+    // Render dynamic user-provided or default sample examples
+    const activeSamples = (Array.isArray(sampleExamples) && sampleExamples.length > 0)
+      ? sampleExamples
+      : (Array.isArray(profileData.sampleExamples) && profileData.sampleExamples.length > 0)
+        ? profileData.sampleExamples
+        : [
+            {
+              recipient: 'Anshuman Singh, Technical Recruiter at TechCorp',
+              note: `Hi Anshuman, I came across your profile and would love to connect. As a Software Engineer exploring new opportunities, I'd appreciate staying in touch regarding future engineering openings. Best, ${myName}`
+            },
+            {
+              recipient: 'Raagavi Manikandan, Talent Acquisition Partner',
+              note: `Hi Raagavi, I'd love to connect! I'm a ${myJob} actively exploring relevant opportunities. I'd love to stay connected with your talent network for upcoming roles. Best, ${myName}`
+            },
+            {
+              recipient: 'Sarah Connor, Engineering Manager',
+              note: `Hi Sarah, I noticed your work leading engineering teams and would love to connect. I'm a ${myJob} interested in following your team's insights and potential openings. Best, ${myName}`
+            }
+          ];
+
+    const fewShotSection = activeSamples.map((s, idx) => `Example ${idx + 1}:
+Recipient: ${s.recipient}
+Note:
+${(s.note || '').trim()}`).join('\n\n');
 
     const prompt = `You are an expert career assistant crafting personalized LinkedIn connection request notes for a candidate.
 
@@ -200,22 +250,12 @@ RECIPIENT DETAILS:
 - Recipient Headline/Title: ${personRole || 'Professional'}
 - Recipient Company/Location: ${personCompany || ''}
 
+STYLE & TONE DIRECTIVE:
+- ${toneInstruction}
+${userExtraPrompt}
 FEW-SHOT EXAMPLES OF DESIRED ACCURATE OUTPUTS:
 
-Example 1 (Recruiter):
-Recipient: Anshuman Singh, Technical Recruiter at TechCorp
-Note:
-Hi Anshuman, I came across your profile and would love to connect. As a Software Engineer exploring new opportunities, I'd appreciate staying in touch regarding future engineering openings. Best, ${myName}
-
-Example 2 (No explicit company provided):
-Recipient: Raagavi Manikandan, Talent Acquisition Partner
-Note:
-Hi Raagavi, I'd love to connect! I'm a ${myJob} actively exploring relevant opportunities. I'd love to stay connected with your talent network for upcoming roles. Best, ${myName}
-
-Example 3 (Engineering Leader):
-Recipient: Sarah Connor, Engineering Manager
-Note:
-Hi Sarah, I noticed your work leading engineering teams and would love to connect. I'm a ${myJob} interested in following your team's insights and potential openings. Best, ${myName}
+${fewShotSection}
 
 CRITICAL RULES:
 1. Output MUST be between 140 and 260 characters (strict LinkedIn connection limit).
