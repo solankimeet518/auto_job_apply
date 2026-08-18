@@ -250,7 +250,7 @@ CANDIDATE DETAILS:
 RECIPIENT DETAILS:
 - Recipient Name: ${personName}
 - Recipient Headline/Title: ${personRole || 'Professional'}
-- Recipient Company: ${personCompany || ''}
+- Recipient Company: ${personCompany && personCompany.trim().length > 0 ? personCompany.trim() : 'Not provided / Unknown'}
 
 STYLE & TONE DIRECTIVE:
 - ${toneInstruction}
@@ -262,10 +262,11 @@ ${fewShotSection}
 CRITICAL RULES:
 1. Output MUST be between 140 and 260 characters (strict LinkedIn connection limit).
 2. Start with "Hi ${firstName}," and sign off with "Best, ${myName}" or "– ${myName}".
-3. NEVER leave placeholders like "[Company Name]", "[Your Name]", "[Role]", or "[Recipient ...]". Use the real names or natural phrasing.
-4. DO NOT include URLs, website links, or "Portfolio: https..." text.
-5. The note MUST be a complete, fully finished thought. NEVER end with "..." or leave incomplete sentences.
-6. Output ONLY the final note message text. Do NOT include quotes, explanations, markdown, or greetings outside the message.`;
+3. If no company is specified above, NEVER invent or guess a company name (e.g. Google, Microsoft, etc.). Instead, refer generally to their team, their talent network, or their work as a ${personRole || 'professional'}.
+4. NEVER leave placeholders like "[Company Name]", "[Your Name]", "[Role]", or "[Recipient ...]". Use the real names or natural phrasing.
+5. DO NOT include URLs, website links, or "Portfolio: https..." text.
+6. The note MUST be a complete, fully finished thought. NEVER end with "..." or leave incomplete sentences.
+7. Output ONLY the final note message text. Do NOT include quotes, explanations, markdown, or greetings outside the message.`;
 
     const response = await model.invoke(prompt);
     let note = response.content.trim();

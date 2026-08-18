@@ -227,7 +227,7 @@ const server = Bun.serve({
         const note = await generateLinkedInNote({
           personName: body.personName || 'Anshuman Singh',
           personRole: body.personRole || 'Technical Recruiter',
-          personCompany: body.personCompany || 'Google',
+          personCompany: body.personCompany || '',
           targetJob: body.targetJob || body.keywords || 'Software Engineer',
           customTemplate: body.noteMode === 'template' ? (body.customTemplate || '') : '',
           tone: body.tone || 'Professional',

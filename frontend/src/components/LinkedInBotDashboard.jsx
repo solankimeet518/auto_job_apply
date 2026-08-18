@@ -113,7 +113,8 @@ export default function LinkedInBotDashboard({ profile }) {
 
   // Note Preview & Testing State
   const [testRecipientName, setTestRecipientName] = useState('Anshuman Singh');
-  const [testRecipientRole, setTestRecipientRole] = useState('Technical Recruiter at Google');
+  const [testRecipientRole, setTestRecipientRole] = useState('Technical Recruiter');
+  const [testRecipientCompany, setTestRecipientCompany] = useState('');
   const [previewNote, setPreviewNote] = useState('');
   const [previewLoading, setPreviewLoading] = useState(false);
 
@@ -121,9 +122,9 @@ export default function LinkedInBotDashboard({ profile }) {
     setPreviewLoading(true);
     try {
       const res = await api.previewLinkedInNote({
-        personName: testRecipientName || 'Anshuman Singh',
-        personRole: testRecipientRole || 'Technical Recruiter',
-        personCompany: 'Google',
+        personName: testRecipientName.trim() || 'Anshuman Singh',
+        personRole: testRecipientRole.trim() || 'Technical Recruiter',
+        personCompany: testRecipientCompany.trim(),
         targetJob: keywords || 'Software Engineer',
         noteMode,
         customTemplate,
@@ -738,12 +739,12 @@ export default function LinkedInBotDashboard({ profile }) {
             </div>
 
             {/* Test Sample Inputs */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
               <input
                 type="text"
                 value={testRecipientName}
                 onChange={e => setTestRecipientName(e.target.value)}
-                placeholder="Sample Name (e.g. Anshuman Singh)"
+                placeholder="Name (e.g. Anshuman Singh)"
                 style={{
                   padding: '6px 10px', fontSize: '12px', borderRadius: '6px',
                   background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)'
@@ -753,7 +754,17 @@ export default function LinkedInBotDashboard({ profile }) {
                 type="text"
                 value={testRecipientRole}
                 onChange={e => setTestRecipientRole(e.target.value)}
-                placeholder="Sample Role (e.g. Tech Recruiter)"
+                placeholder="Role (e.g. Technical Recruiter)"
+                style={{
+                  padding: '6px 10px', fontSize: '12px', borderRadius: '6px',
+                  background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)'
+                }}
+              />
+              <input
+                type="text"
+                value={testRecipientCompany}
+                onChange={e => setTestRecipientCompany(e.target.value)}
+                placeholder="Company (Optional)"
                 style={{
                   padding: '6px 10px', fontSize: '12px', borderRadius: '6px',
                   background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)'
