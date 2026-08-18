@@ -183,7 +183,8 @@ async function applySearchAndFilters(page, config, profileData = {}) {
     if (label2nd) {
       logLinkedInActivity('👉 Clicking label "2nd"...');
       await label2nd.click().catch(() => {});
-      await page.waitForTimeout(500);
+      await page.waitForLoadState('domcontentloaded').catch(() => {});
+      await page.waitForTimeout(1500);
     }
 
     // Click label with text '3rd+' or '3rd'
@@ -195,7 +196,8 @@ async function applySearchAndFilters(page, config, profileData = {}) {
     if (label3rd) {
       logLinkedInActivity('👉 Clicking label "3rd+" / "3rd"...');
       await label3rd.click().catch(() => {});
-      await page.waitForTimeout(500);
+      await page.waitForLoadState('domcontentloaded').catch(() => {});
+      await page.waitForTimeout(1500);
     }
 
     // If dropdown opened with "Show results", click it
@@ -227,7 +229,8 @@ async function applySearchAndFilters(page, config, profileData = {}) {
     if (verifiedEl) {
       logLinkedInActivity('👉 Clicking "Verified" filter...');
       await verifiedEl.click().catch(() => {});
-      await page.waitForTimeout(500);
+      await page.waitForLoadState('domcontentloaded').catch(() => {});
+      await page.waitForTimeout(1500);
 
       // Click "Show results" if inside modal or dropdown
       const showVerifiedResults = await page.$('div[role="dialog"] button:has-text("Show results"), button:has-text("Show results"):visible');
@@ -240,6 +243,12 @@ async function applySearchAndFilters(page, config, profileData = {}) {
   } catch (verErr) {
     logLinkedInActivity(`⚠️ Notice: Verified filter step bypassed: ${verErr.message}`);
   }
+
+  // 6. Wait for skeleton loading state to resolve and real search result cards to render
+  logLinkedInActivity('⏳ Waiting for search results to load and skeleton animations to complete...');
+  await page.waitForLoadState('domcontentloaded').catch(() => {});
+  await page.waitForSelector('div[role="list"] [role="listitem"], [role="listitem"], .reusable-search__result-container, .entity-result', { timeout: 10000 }).catch(() => {});
+  await page.waitForTimeout(2000);
 
   // Scroll down slightly to trigger lazy card rendering
   await page.evaluate(() => window.scrollBy(0, 400)).catch(() => {});
