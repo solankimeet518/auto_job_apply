@@ -300,18 +300,25 @@ async function getPeopleFromSearchPage(page) {
       const locationEl = card.querySelector('.entity-result__secondary-subtitle, div.t-14.t-black--light');
       const location = locationEl ? locationEl.innerText.trim() : '';
 
+      // Check if action button on card already indicates Pending invitation
+      const actionBtn = card.querySelector('button, a.artdeco-button, a');
+      const actionText = actionBtn ? (actionBtn.innerText || '').trim().toLowerCase() : '';
+      const actionAria = actionBtn ? (actionBtn.getAttribute('aria-label') || '').toLowerCase() : '';
+      const isCardPending = actionText === 'pending' || actionAria.includes('withdraw') || actionAria.includes('pending');
+
       if (name && name !== 'LinkedIn Member' && href) {
         results.push({
           url: href,
           name,
           headline,
           location,
+          isPending: isCardPending,
         });
       }
     });
 
     return results;
-  }).catch(() => []);
+  });
 }
 
 /**
@@ -321,6 +328,12 @@ async function getPeopleFromSearchPage(page) {
 async function processProfileConnection(context, person, config, profileData) {
   logLinkedInActivity(`👤 Processing: ${person.name} (${person.headline || 'Professional'})`);
 
+  if (person.isPending) {
+    logLinkedInActivity(`ℹ️ Connection request is already sent / pending for ${person.name} ("Pending, click to withdraw invitation"). Skipping.`);
+    linkedinBotState.stats.skipped++;
+    return false;
+  }
+
   let profilePage = null;
   try {
     profilePage = await context.newPage();
@@ -329,7 +342,29 @@ async function processProfileConnection(context, person, config, profileData) {
     await profilePage.goto(person.url, { waitUntil: 'domcontentloaded' }).catch(() => {});
     await profilePage.waitForTimeout(3000);
 
-    // 1. Check for primary Connect button/link on profile top card (strictly excluding mutual connection links)
+    // 0. Check if connection request is already pending ("Pending, click to withdraw invitation")
+    const pendingEl = await profilePage.$(
+      'main a[aria-label*="Pending"], main button[aria-label*="Pending"], ' +
+      'main a:has-text("Pending"), main button:has-text("Pending"), ' +
+      'div.ph5 [aria-label*="withdraw invitation"], .pv-top-card [aria-label*="withdraw invitation"], ' +
+      '[aria-label*="click to withdraw"], [aria-label*="Pending"]'
+    );
+
+    const isPending = pendingEl ? await pendingEl.evaluate(el => {
+      const text = (el.innerText || '').trim().toLowerCase();
+      const aria = (el.getAttribute('aria-label') || '').trim().toLowerCase();
+      const isVisible = el.offsetWidth > 0 && el.offsetHeight > 0;
+      return isVisible && (text.includes('pending') || aria.includes('withdraw') || aria.includes('pending'));
+    }).catch(() => false) : false;
+
+    if (isPending) {
+      logLinkedInActivity(`ℹ️ Connection request is already sent / pending for ${person.name} ("Pending, click to withdraw invitation"). Skipping.`);
+      linkedinBotState.stats.skipped++;
+      await profilePage.close().catch(() => {});
+      return false;
+    }
+
+    // 1. Check for primary Connect button/link on profile top card (strictly excluding mutual and pending links)
     let connectBtn = null;
     const candidates = await profilePage.$$(
       'main a.artdeco-button, main button.artdeco-button, ' +
@@ -347,6 +382,11 @@ async function processProfileConnection(context, person, config, profileData) {
         
         // Strict exclusion of mutual connection text links or connection count links
         if (textLower.includes('mutual') || textLower.includes('connections') || ariaLabel.includes('mutual')) {
+          return false;
+        }
+
+        // Strict exclusion of pending / withdraw invitation links
+        if (textLower.includes('pending') || textLower.includes('withdraw') || ariaLabel.includes('withdraw') || ariaLabel.includes('pending')) {
           return false;
         }
 
