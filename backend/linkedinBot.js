@@ -82,6 +82,34 @@ async function checkLinkedInLogin(page) {
 }
 
 /**
+ * Clicks the "Show results" action link / button across dropdowns, modals, or page filters.
+ * Robustly matches <a> links, <button> tags, and custom LinkedIn attributes.
+ */
+async function clickShowResults(page, contextLabel = '') {
+  try {
+    const showResultsEl = await page.$(
+      'a:has-text("Show results"), button:has-text("Show results"), ' +
+      'a[data-control-name="filter_show_results"], button[data-control-name="filter_show_results"], ' +
+      'a[aria-label*="Show results"], button[aria-label*="Show results"], ' +
+      'a[aria-label*="Apply current filter"], button[aria-label*="Apply current filter"], ' +
+      'div.artdeco-dropdown__content--is-open a, div.artdeco-dropdown__content--is-open button, ' +
+      'div[role="dialog"] a.artdeco-button--primary, div[role="dialog"] button.artdeco-button--primary'
+    );
+
+    if (showResultsEl) {
+      logLinkedInActivity(`👉 Clicking "Show results" link/button${contextLabel ? ` (${contextLabel})` : ''}...`);
+      await showResultsEl.click().catch(() => {});
+      // Fallback click dispatch if standard click doesn't trigger navigation
+      await showResultsEl.evaluate(node => node.click()).catch(() => {});
+      await page.waitForLoadState('domcontentloaded').catch(() => {});
+      await page.waitForTimeout(2500);
+      return true;
+    }
+  } catch (_) {}
+  return false;
+}
+
+/**
  * Performs interactive search from home feed and applies People, Location, Connections, and Verified filters.
  */
 async function applySearchAndFilters(page, config, profileData = {}) {
@@ -153,14 +181,8 @@ async function applySearchAndFilters(page, config, profileData = {}) {
           }
         }
 
-        // Click "Show results" button inside dropdown
-        const showResultsBtn = await page.$('button[data-control-name="filter_show_results"], button:has-text("Show results"), button[aria-label*="Apply current filter"]');
-        if (showResultsBtn) {
-          logLinkedInActivity('👉 Clicking "Show results" for Location filter...');
-          await showResultsBtn.click().catch(() => {});
-          await page.waitForLoadState('domcontentloaded').catch(() => {});
-          await page.waitForTimeout(3000);
-        }
+        // Click "Show results" link / button inside dropdown
+        await clickShowResults(page, 'Location filter');
       }
     } catch (locErr) {
       logLinkedInActivity(`⚠️ Notice: Location filter step bypassed: ${locErr.message}`);
@@ -201,12 +223,7 @@ async function applySearchAndFilters(page, config, profileData = {}) {
     }
 
     // If dropdown opened with "Show results", click it
-    const showConnResults = await page.$('div.artdeco-dropdown__content--is-open button:has-text("Show results"), button[data-control-name="filter_show_results"]:visible, button:has-text("Show results"):visible');
-    if (showConnResults) {
-      await showConnResults.click().catch(() => {});
-      await page.waitForLoadState('domcontentloaded').catch(() => {});
-      await page.waitForTimeout(2500);
-    }
+    await clickShowResults(page, 'Connections filter');
   } catch (connErr) {
     logLinkedInActivity(`⚠️ Notice: Connections filter step bypassed: ${connErr.message}`);
   }
@@ -233,12 +250,7 @@ async function applySearchAndFilters(page, config, profileData = {}) {
       await page.waitForTimeout(1500);
 
       // Click "Show results" if inside modal or dropdown
-      const showVerifiedResults = await page.$('div[role="dialog"] button:has-text("Show results"), button:has-text("Show results"):visible');
-      if (showVerifiedResults) {
-        await showVerifiedResults.click().catch(() => {});
-        await page.waitForLoadState('domcontentloaded').catch(() => {});
-        await page.waitForTimeout(2500);
-      }
+      await clickShowResults(page, 'Verified filter');
     }
   } catch (verErr) {
     logLinkedInActivity(`⚠️ Notice: Verified filter step bypassed: ${verErr.message}`);
