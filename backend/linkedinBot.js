@@ -122,10 +122,12 @@ async function clickShowResults(page, contextLabel = '') {
  */
 async function applySearchAndFilters(page, config, profileData = {}) {
   const keywords = config.keywords || 'Software Engineer Recruiter';
-  logLinkedInActivity(`🌐 Navigating to LinkedIn Home Feed...`);
-
-  await page.goto('https://www.linkedin.com/feed/', { waitUntil: 'domcontentloaded' }).catch(() => {});
-  await page.waitForTimeout(3000);
+  const currentUrl = page.url() || '';
+  if (!currentUrl.includes('linkedin.com/feed') && !currentUrl.includes('linkedin.com')) {
+    logLinkedInActivity(`🌐 Navigating to LinkedIn Home Feed...`);
+    await page.goto('https://www.linkedin.com/feed/', { waitUntil: 'domcontentloaded' }).catch(() => {});
+    await page.waitForTimeout(2000);
+  }
 
   // 1. Search input on top nav bar
   logLinkedInActivity(`✍️ Typing search query: "${keywords}" into search input...`);
@@ -215,20 +217,13 @@ async function applySearchAndFilters(page, config, profileData = {}) {
     }
   }
 
-  // 4. Connections Network Filter (click label '2nd' and label '3rd+')
+  // 4. Connections Network Filter (click direct labels '2nd' and '3rd+')
   try {
     const apply2nd = config.network2nd !== false;
     const apply3rd = config.network3rd !== false;
 
     if (apply2nd || apply3rd) {
       logLinkedInActivity(`🔗 Applying Connection filters (${apply2nd ? '"2nd" ' : ''}${apply3rd ? '"3rd+"' : ''})...`);
-      
-      // Check if Connections dropdown button needs to be opened
-      const connBtn = await page.$('button:has-text("Connections"), button[aria-label*="Connections filter"]');
-      if (connBtn) {
-        await connBtn.click().catch(() => {});
-        await page.waitForTimeout(1200);
-      }
 
       // Click label with text '2nd'
       if (apply2nd) {
@@ -237,7 +232,7 @@ async function applySearchAndFilters(page, config, profileData = {}) {
           logLinkedInActivity('👉 Clicking label "2nd"...');
           await label2nd.click().catch(() => {});
           await page.waitForLoadState('domcontentloaded').catch(() => {});
-          await page.waitForTimeout(1500);
+          await page.waitForTimeout(5000);
         }
       }
 
@@ -252,12 +247,9 @@ async function applySearchAndFilters(page, config, profileData = {}) {
           logLinkedInActivity('👉 Clicking label "3rd+" / "3rd"...');
           await label3rd.click().catch(() => {});
           await page.waitForLoadState('domcontentloaded').catch(() => {});
-          await page.waitForTimeout(1500);
+          await page.waitForTimeout(5000);
         }
       }
-
-      // If dropdown opened with "Show results", click it
-      await clickShowResults(page, 'Connections filter');
     }
   } catch (connErr) {
     logLinkedInActivity(`⚠️ Notice: Connections filter step bypassed: ${connErr.message}`);
@@ -282,10 +274,7 @@ async function applySearchAndFilters(page, config, profileData = {}) {
       logLinkedInActivity('👉 Clicking "Verified" filter...');
       await verifiedEl.click().catch(() => {});
       await page.waitForLoadState('domcontentloaded').catch(() => {});
-      await page.waitForTimeout(1500);
-
-      // Click "Show results" if inside modal or dropdown
-      await clickShowResults(page, 'Verified filter');
+      await page.waitForTimeout(5000);
     }
   } catch (verErr) {
     logLinkedInActivity(`⚠️ Notice: Verified filter step bypassed: ${verErr.message}`);
