@@ -4,13 +4,14 @@ import { api } from './api';
 import UploadResume from './components/UploadResume';
 import ProfileEditor from './components/ProfileEditor';
 import AIAnsweringTest from './components/AIAnsweringTest';
+import BotDashboard from './components/BotDashboard';
 import LinkedInBotDashboard from './components/LinkedInBotDashboard';
 import { Terminal } from 'lucide-react';
 
 function App() {
   const [screen, setScreen] = useState('loading'); // 'loading' | 'uploader' | 'editor'
   const [profile, setProfile] = useState(null);
-  const [editorTab, setEditorTab] = useState('profile'); // 'profile' | 'querytest'
+  const [editorTab, setEditorTab] = useState('profile'); // 'profile' | 'querytest' | 'dashboard' | 'linkedin'
 
   useEffect(() => {
     async function checkProfile() {
@@ -46,42 +47,53 @@ function App() {
             <Terminal size={20} />
           </div>
           <div>
-            <h1 style={{ fontSize: '18px', fontWeight: '800', letterSpacing: '0.5px' }}>Indeed Apply Bot</h1>
-            <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Local Ollama Automation</p>
+            <h1 style={{ fontSize: '18px', fontWeight: '800', letterSpacing: '0.5px' }}>Auto Job Apply</h1>
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Indeed & LinkedIn Automation</p>
           </div>
         </div>
 
         {/* Tab switcher when profile is loaded */}
         {screen === 'editor' && (
-          <div style={{ display: 'flex', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: '24px', padding: '4px' }}>
+          <div style={{ display: 'flex', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: '24px', padding: '4px', gap: '4px' }}>
             <button
               onClick={() => setEditorTab('profile')}
               style={{
                 background: editorTab === 'profile' ? 'var(--primary)' : 'transparent',
                 color: editorTab === 'profile' ? '#fff' : 'var(--text-muted)',
-                border: 'none', borderRadius: '20px', padding: '8px 20px', fontSize: '13px', fontWeight: '600',
+                border: 'none', borderRadius: '20px', padding: '8px 14px', fontSize: '13px', fontWeight: '600',
                 cursor: 'pointer', transition: 'all 0.3s ease'
               }}
             >
-              📝 Profile Editor
+              📝 Profile
             </button>
             <button
               onClick={() => setEditorTab('querytest')}
               style={{
                 background: editorTab === 'querytest' ? 'var(--primary)' : 'transparent',
                 color: editorTab === 'querytest' ? '#fff' : 'var(--text-muted)',
-                border: 'none', borderRadius: '20px', padding: '8px 20px', fontSize: '13px', fontWeight: '600',
+                border: 'none', borderRadius: '20px', padding: '8px 14px', fontSize: '13px', fontWeight: '600',
                 cursor: 'pointer', transition: 'all 0.3s ease'
               }}
             >
               🤖 AI Query Test
             </button>
             <button
+              onClick={() => setEditorTab('dashboard')}
+              style={{
+                background: editorTab === 'dashboard' ? 'var(--primary)' : 'transparent',
+                color: editorTab === 'dashboard' ? '#fff' : 'var(--text-muted)',
+                border: 'none', borderRadius: '20px', padding: '8px 14px', fontSize: '13px', fontWeight: '600',
+                cursor: 'pointer', transition: 'all 0.3s ease'
+              }}
+            >
+              🚀 Indeed Apply
+            </button>
+            <button
               onClick={() => setEditorTab('linkedin')}
               style={{
                 background: editorTab === 'linkedin' ? '#0A66C2' : 'transparent',
                 color: editorTab === 'linkedin' ? '#fff' : 'var(--text-muted)',
-                border: 'none', borderRadius: '20px', padding: '8px 20px', fontSize: '13px', fontWeight: '600',
+                border: 'none', borderRadius: '20px', padding: '8px 14px', fontSize: '13px', fontWeight: '600',
                 cursor: 'pointer', transition: 'all 0.3s ease'
               }}
             >
@@ -124,6 +136,7 @@ function App() {
             initialProfile={profile}
             onSaveComplete={(savedProfile) => {
               setProfile(savedProfile);
+              setEditorTab('dashboard'); // Auto-switch to dashboard/console on save
             }}
             onReuploadRequested={() => {
               setScreen('uploader');
@@ -131,6 +144,8 @@ function App() {
           />
         ) : editorTab === 'querytest' ? (
           <AIAnsweringTest />
+        ) : editorTab === 'dashboard' ? (
+          <BotDashboard profile={profile} />
         ) : (
           <LinkedInBotDashboard profile={profile} />
         )

@@ -3,13 +3,14 @@ import { extractProfile } from './profileExtractor.js';
 import { config } from './config.js';
 import { saveToQAMemory, generateAnswer } from './queryEngine.js';
 import { linkedinBotState, startLinkedInLoop, stopLinkedInLoop } from './linkedinBot.js';
+import { startAutomationLoop } from './applyBot.js';
 import fs from 'fs';
 import path from 'path';
 
 const PORT = 3000;
 
 // Global state of the bot
-let botState = {
+export let botState = {
   status: 'idle', // 'idle' | 'running' | 'paused_input' | 'completed' | 'error'
   logs: [],
   pendingQuestions: [], // [{ id, text, jobUrl }]
@@ -247,40 +248,3 @@ const server = Bun.serve({
 });
 
 console.log(`\n🚀 API server is running at http://localhost:${server.port}\n`);
-
-// Mock automation loop for testing the structure in Module 1
-function startAutomationLoop() {
-  let counter = 0;
-  const interval = setInterval(() => {
-    if (botState.status !== 'running') {
-      clearInterval(interval);
-      return;
-    }
-    
-    counter++;
-    if (counter === 1) {
-      logBotActivity('Searching Indeed postings...');
-    } else if (counter === 2) {
-      logBotActivity('Found 3 relevant postings.');
-    } else if (counter === 3) {
-      logBotActivity('Applying to job 1: Senior Software Engineer at TechGlobal...');
-    } else if (counter === 4) {
-      logBotActivity('Form asks: "How many years of experience do you have with Rust?"');
-      logBotActivity('Generating answer from resume context...');
-      logBotActivity('Found: "2+ years of full-stack build experience including Rust"');
-      logBotActivity('Filled: 2');
-    } else if (counter === 5) {
-      logBotActivity('⚠️  Form asks: "What is your target salary?" (Out of context)');
-      logBotActivity('pausing execution and requesting user input...');
-      
-      // Pause loop for input
-      botState.status = 'paused_input';
-      botState.pendingQuestions.push({
-        id: 'q_' + Date.now(),
-        text: 'What is your expected salary (USD / year)?',
-        jobUrl: 'https://indeed.com/viewjob?jk=12345678',
-      });
-      clearInterval(interval);
-    }
-  }, 3000);
-}
