@@ -2,6 +2,7 @@ import { parseResume } from './resumeParser.js';
 import { extractProfile } from './profileExtractor.js';
 import { config } from './config.js';
 import { saveToQAMemory, generateAnswer } from './queryEngine.js';
+import { linkedinBotState, startLinkedInLoop, stopLinkedInLoop } from './linkedinBot.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -199,6 +200,42 @@ const server = Bun.serve({
         logBotActivity(`🔍 Testing query engine for: "${question}"`);
         const result = await generateAnswer(question);
         return getCorsResponse(result);
+      }
+
+      // GET /api/linkedin/status -> Get current LinkedIn outreach state & logs
+      if (url.pathname === '/api/linkedin/status' && req.method === 'GET') {
+        return getCorsResponse(linkedinBotState);
+      }
+
+      // POST /api/linkedin/start -> Start LinkedIn outreach loop
+      if (url.pathname === '/api/linkedin/start' && req.method === 'POST') {
+        const body = await req.json().catch(() => ({}));
+        startLinkedInLoop(body);
+        return getCorsResponse({ status: 'started' });
+      }
+
+      // POST /api/linkedin/stop -> Stop LinkedIn outreach loop
+      if (url.pathname === '/api/linkedin/stop' && req.method === 'POST') {
+        await stopLinkedInLoop();
+        return getCorsResponse({ status: 'stopped' });
+      }
+
+      // POST /api/linkedin/preview-note -> Generate a test note with Ollama or template
+      if (url.pathname === '/api/linkedin/preview-note' && req.method === 'POST') {
+        const body = await req.json().catch(() => ({}));
+        const { generateLinkedInNote } = await import('./queryEngine.js');
+        const note = await generateLinkedInNote({
+          personName: body.personName || 'Anshuman Singh',
+          personRole: body.personRole || 'Technical Recruiter',
+          personCompany: body.personCompany || '',
+          targetJob: body.targetJob || body.keywords || 'Software Engineer',
+          customTemplate: body.noteMode === 'template' ? (body.customTemplate || '') : '',
+          tone: body.tone || 'Professional',
+          customInstructions: body.customInstructions || '',
+          temperature: body.temperature || 0.3,
+          sampleExamples: body.sampleExamples || [],
+        });
+        return getCorsResponse({ note, length: note.length });
       }
 
       return getCorsResponse({ error: 'Endpoint Not Found' }, 404);

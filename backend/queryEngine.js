@@ -137,3 +137,185 @@ Instructions:
     return { outOfContext: true };
   }
 }
+
+/**
+ * Generates a concise, personalized LinkedIn connection note (<= 280 chars).
+ * @param {object} params
+ * @param {string} params.personName - Recipient's name.
+ * @param {string} params.personRole - Recipient's headline/role.
+ * @param {string} params.personCompany - Recipient's company.
+ * @param {string} [params.targetJob] - Target job title.
+ * @param {string} [params.customTemplate] - Optional template with {name}, {company}, {role}, {targetJob} placeholders.
+ * @param {string} [params.tone] - 'Professional' | 'Friendly & Casual' | 'Direct & Concise' | 'Technical Focus'.
+ * @param {string} [params.customInstructions] - Custom user guidance (e.g. 'Highlight React & Node.js').
+ * @param {number} [params.temperature] - Ollama model temperature (0.1 to 0.7).
+ * @returns {Promise<string>} - The personalized connection note under 280 characters.
+ */
+export async function generateLinkedInNote({
+  personName = '',
+  personRole = '',
+  personCompany = '',
+  targetJob = '',
+  customTemplate = '',
+  tone = 'Professional',
+  customInstructions = '',
+  temperature = 0.3,
+  sampleExamples = [],
+}) {
+  const firstName = personName.trim().split(/\s+/)[0] || 'there';
+
+  let profileData = {};
+  if (fs.existsSync(PROFILE_PATH)) {
+    try {
+      profileData = JSON.parse(fs.readFileSync(PROFILE_PATH, 'utf8'));
+    } catch (_) {}
+  }
+
+  const myJob = targetJob || profileData.targetJob || 'Software Engineer';
+  const myName = `${profileData.firstName || ''} ${profileData.lastName || ''}`.trim() || 'Candidate';
+
+  // 1. If custom template is provided, populate placeholders
+  if (customTemplate && customTemplate.trim().length > 0) {
+    let note = customTemplate
+      .replace(/\{name\}/gi, firstName)
+      .replace(/\{fullName\}/gi, personName)
+      .replace(/\{role\}/gi, personRole || 'your role')
+      .replace(/\{company\}/gi, personCompany || 'your team')
+      .replace(/\{targetJob\}/gi, myJob)
+      .replace(/\{myName\}/gi, myName);
+    
+    if (note.length > 280) {
+      const truncated = note.substring(0, 275);
+      const lastSpace = truncated.lastIndexOf(' ');
+      note = (lastSpace > 140 ? truncated.substring(0, lastSpace) : truncated).trim();
+    }
+    return note.replace(/\s*\.{2,}\s*$/g, '').trim();
+  }
+
+  // 2. Default fallback note in case Ollama is unavailable
+  const fallbackNote = `Hi ${firstName}, I came across your profile and would love to connect. I'm a ${myJob} exploring relevant opportunities and following your work!`;
+
+  // 3. Generate personalized note via Ollama with fine-tuned parameters
+  try {
+    const tempValue = Math.min(Math.max(Number(temperature) || 0.3, 0.0), 1.0);
+    const model = new ChatOllama({
+      baseUrl: config.ollama.baseUrl,
+      model: config.ollama.model,
+      temperature: tempValue,
+    });
+
+    const toneInstruction = {
+      'Professional': 'Maintain a polished, respectful, and career-focused professional tone.',
+      'Friendly & Casual': 'Use a warm, friendly, conversational, and approachable tone.',
+      'Direct & Concise': 'Be extremely concise and punchy. Aim for under 180 characters.',
+      'Technical Focus': 'Highlight interest in software engineering architecture, scalable systems, and tech stack.',
+    }[tone] || 'Maintain a polished, respectful, and career-focused professional tone.';
+
+    const userExtraPrompt = customInstructions && customInstructions.trim().length > 0
+      ? `\nUSER FINE-TUNING INSTRUCTIONS:\n- ${customInstructions.trim()}\n`
+      : '';
+
+    // Render dynamic user-provided or default sample examples
+    const activeSamples = (Array.isArray(sampleExamples) && sampleExamples.length > 0)
+      ? sampleExamples
+      : (Array.isArray(profileData.sampleExamples) && profileData.sampleExamples.length > 0)
+        ? profileData.sampleExamples
+        : [
+            {
+              recipient: 'Anshuman Singh, Technical Recruiter at TechCorp',
+              note: `Hi Anshuman, I came across your profile and would love to connect. As a Software Engineer exploring new opportunities, I'd appreciate staying in touch regarding future engineering openings. Best, ${myName}`
+            },
+            {
+              recipient: 'Raagavi Manikandan, Talent Acquisition Partner',
+              note: `Hi Raagavi, I'd love to connect! I'm a ${myJob} actively exploring relevant opportunities. I'd love to stay connected with your talent network for upcoming roles. Best, ${myName}`
+            },
+            {
+              recipient: 'Sarah Connor, Engineering Manager',
+              note: `Hi Sarah, I noticed your work leading engineering teams and would love to connect. I'm a ${myJob} interested in following your team's insights and potential openings. Best, ${myName}`
+            }
+          ];
+
+    const fewShotSection = activeSamples.map((s, idx) => `Example ${idx + 1}:
+Recipient: ${s.recipient}
+Note:
+${(s.note || '').trim()}`).join('\n\n');
+
+    const prompt = `You are an expert career assistant crafting personalized LinkedIn connection request notes for a candidate.
+
+CANDIDATE DETAILS:
+- Candidate Name: ${myName}
+- Candidate Target Role: ${myJob}
+- Core Skills/Summary: ${(profileData.summary || profileData.experience?.[0]?.title || '').substring(0, 150)}
+
+RECIPIENT DETAILS:
+- Recipient Name: ${personName}
+- Recipient Headline/Title: ${personRole || 'Professional'}
+- Recipient Company: ${personCompany && personCompany.trim().length > 0 ? personCompany.trim() : 'Not provided / Unknown'}
+
+STYLE & TONE DIRECTIVE:
+- ${toneInstruction}
+${userExtraPrompt}
+FEW-SHOT EXAMPLES OF DESIRED ACCURATE OUTPUTS:
+
+${fewShotSection}
+
+CRITICAL RULES:
+1. Output MUST be between 140 and 260 characters (strict LinkedIn connection limit).
+2. Start with "Hi ${firstName}," and sign off with "Best, ${myName}" or "– ${myName}".
+3. If no company is specified above, NEVER invent or guess a company name (e.g. Google, Microsoft, etc.). Instead, refer generally to their team, their talent network, or their work as a ${personRole || 'professional'}.
+4. NEVER leave placeholders like "[Company Name]", "[Your Name]", "[Role]", or "[Recipient ...]". Use the real names or natural phrasing.
+5. DO NOT include URLs, website links, or "Portfolio: https..." text.
+6. The note MUST be a complete, fully finished thought. NEVER end with "..." or leave incomplete sentences.
+7. Output ONLY the final note message text. Do NOT include quotes, explanations, markdown, or greetings outside the message.`;
+
+    const response = await model.invoke(prompt);
+    let note = response.content.trim();
+
+    // Clean formatting and remove surrounding quotes/code fences
+    if (note.startsWith('"') && note.endsWith('"')) {
+      note = note.slice(1, -1).trim();
+    }
+    if (note.startsWith("```")) {
+      note = note.replace(/^```[a-z]*\n/i, "").replace(/\n```$/i, "").trim();
+    }
+
+    // Clean any accidental placeholder brackets if generated
+    note = note
+      .replace(/\[Recipient[^\]]*\]/gi, personCompany || 'your team')
+      .replace(/\[Company(?:\s+Name)?\]/gi, personCompany || 'your company')
+      .replace(/\[Your\s+Name\]/gi, myName)
+      .replace(/\[Candidate(?:\s+Name)?\]/gi, myName)
+      .replace(/\[Target\s+Job\]/gi, myJob)
+      .replace(/\[Role\]/gi, myJob)
+      .replace(/\[[^\]]+\]/g, ''); // strip any remaining brackets
+
+    // Strip any accidental URLs or portfolio mentions
+    note = note.replace(/Portfolio:\s*\S*/gi, '').replace(/https?:\/\/\S+/gi, '').trim();
+
+    // Strip any trailing ellipsis or multiple dots produced by the model
+    note = note.replace(/\s*\.{2,}\s*$/g, '').replace(/\s*…\s*$/g, '').trim();
+
+    if (!note || note.length < 10) {
+      return fallbackNote;
+    }
+
+    // If note exceeds 280 characters, trim at the last clean sentence or word boundary without '...'
+    if (note.length > 280) {
+      const truncated = note.substring(0, 275);
+      const lastSentenceEnd = Math.max(truncated.lastIndexOf('.'), truncated.lastIndexOf('!'));
+      if (lastSentenceEnd > 140) {
+        note = truncated.substring(0, lastSentenceEnd + 1).trim();
+      } else {
+        const lastSpace = truncated.lastIndexOf(' ');
+        note = (lastSpace > 140 ? truncated.substring(0, lastSpace) : truncated).trim();
+      }
+      note = note.replace(/\s*\.{2,}\s*$/g, '').replace(/\s*…\s*$/g, '').trim();
+    }
+
+    return note;
+  } catch (err) {
+    console.warn(`Ollama LinkedIn note generation failed: ${err.message}. Using fallback note.`);
+    return fallbackNote;
+  }
+}
+

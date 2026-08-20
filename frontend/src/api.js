@@ -105,4 +105,40 @@ export const api = {
       body: JSON.stringify({ question }),
     });
   },
+
+  /**
+   * Poll LinkedIn outreach bot status and logs.
+   */
+  async getLinkedInStatus() {
+    return apiFetch('/api/linkedin/status');
+  },
+
+  /**
+   * Start LinkedIn connection request outreach loop.
+   */
+  async startLinkedInBot(config = {}) {
+    return apiFetch('/api/linkedin/start', {
+      method: 'POST',
+      body: JSON.stringify(config),
+    });
+  },
+
+  /**
+   * Stop LinkedIn connection request outreach loop.
+   */
+  async stopLinkedInBot() {
+    return apiFetch('/api/linkedin/stop', {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Preview a generated LinkedIn note with Ollama or template.
+   */
+  async previewLinkedInNote(data = {}) {
+    return apiFetch('/api/linkedin/preview-note', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
 };
