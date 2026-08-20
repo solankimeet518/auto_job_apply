@@ -430,21 +430,62 @@ export default function LinkedInBotDashboard({ profile }) {
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
               <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                Max Invitations per Session
+                Max Invitations per Session (1 – 1,000)
               </label>
-              <span style={{ fontSize: '14px', fontWeight: '800', color: '#0A66C2' }}>{maxInvites} Invites</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <input
+                  type="number"
+                  min="1"
+                  max="1000"
+                  value={maxInvites}
+                  onChange={e => {
+                    const val = Number(e.target.value);
+                    if (val === 0) setMaxInvites('');
+                    else setMaxInvites(Math.min(1000, Math.max(1, val)));
+                  }}
+                  onBlur={() => {
+                    if (!maxInvites || Number(maxInvites) < 1) setMaxInvites(1);
+                  }}
+                  className="input"
+                  style={{ width: '80px', padding: '4px 8px', fontSize: '13px', textAlign: 'center', fontWeight: '800', color: '#0A66C2' }}
+                />
+                <span style={{ fontSize: '13px', fontWeight: '700', color: '#0A66C2' }}>Invites</span>
+              </div>
             </div>
             <input
               type="range"
-              min="5"
-              max="50"
-              step="5"
-              value={maxInvites}
-              onChange={e => setMaxInvites(e.target.value)}
-              style={{ width: '100%', accentColor: '#0A66C2' }}
+              min="1"
+              max="1000"
+              step="1"
+              value={Number(maxInvites) || 1}
+              onChange={e => setMaxInvites(Number(e.target.value))}
+              style={{ width: '100%', accentColor: '#0A66C2', cursor: 'pointer' }}
             />
-            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-              Recommended: 20-30 invites daily to keep your account safe from restrictions.
+            {/* Quick Presets */}
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px' }}>
+              {[10, 25, 50, 100, 250, 500, 1000].map(preset => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => setMaxInvites(preset)}
+                  style={{
+                    padding: '3px 8px',
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    borderRadius: '4px',
+                    border: '1px solid var(--border-color)',
+                    background: Number(maxInvites) === preset ? '#0A66C2' : 'var(--bg-secondary)',
+                    color: Number(maxInvites) === preset ? '#ffffff' : 'var(--text-main)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
+            <span style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
+              Select anywhere from 1 to 1,000 invitations per outreach session.
             </span>
           </div>
 

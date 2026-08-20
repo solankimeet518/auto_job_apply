@@ -82,68 +82,37 @@ async function checkLinkedInLogin(page) {
 }
 
 /**
- * Clicks the "Show results" action link / button across dropdowns, modals, or page filters.
- * Matches dynamic texts like "Show 1,200 results", "Show 10+ results", "Show results",
- * <a> links, <button> tags, and custom LinkedIn attributes.
+ * Simple "Show results" click: strictly triggers React in-page filter update without full href redirect.
  */
 async function clickShowResults(page, contextLabel = '') {
   try {
-    const selectors = [
-      'div.artdeco-dropdown__content--is-open a[data-control-name="filter_show_results"]',
-      'div.artdeco-dropdown__content--is-open button[data-control-name="filter_show_results"]',
-      'div.artdeco-dropdown__content--is-open a.artdeco-button--primary',
-      'div.artdeco-dropdown__content--is-open button.artdeco-button--primary',
-      'div[role="dialog"] a.artdeco-button--primary',
-      'div[role="dialog"] button.artdeco-button--primary',
-      'a[data-control-name="filter_show_results"]:visible',
-      'button[data-control-name="filter_show_results"]:visible',
-      'a.artdeco-button--primary:visible',
-      'button.artdeco-button--primary:visible',
-      'a[aria-label*="results"]:visible',
-      'button[aria-label*="results"]:visible',
-      'a[aria-label*="Apply current filter"]:visible',
-      'button[aria-label*="Apply current filter"]:visible',
-      'div.artdeco-dropdown__content--is-open a',
-      'div.artdeco-dropdown__content--is-open button'
-    ];
+    const link = await page.$(
+      'div.artdeco-dropdown__content--is-open a:has-text("Show results"), ' +
+      'div.artdeco-dropdown__content--is-open button:has-text("Show results"), ' +
+      'a:has-text("Show results"):visible, button:has-text("Show results"):visible'
+    );
 
-    for (const sel of selectors) {
-      const elements = await page.$$(sel);
-      for (const el of elements) {
-        const isMatch = await el.evaluate(node => {
-          const text = (node.innerText || '').toLowerCase().trim();
-          const aria = (node.getAttribute('aria-label') || '').toLowerCase().trim();
-          const isVisible = node.offsetWidth > 0 && node.offsetHeight > 0;
-          
-          if (!isVisible) return false;
-          
-          // Must contain "result", "show", "apply" or have data-control-name="filter_show_results"
-          const hasShowResultsText = text.includes('result') || text.includes('show') || text.includes('apply');
-          const hasShowResultsAria = aria.includes('result') || aria.includes('apply') || aria.includes('show');
-          const isFilterControl = node.getAttribute('data-control-name') === 'filter_show_results' || 
-                                  node.classList.contains('artdeco-button--primary');
-          
-          // Exclude reset / cancel / clear buttons
-          if (text.includes('reset') || text.includes('cancel') || text.includes('clear')) {
-            return false;
-          }
+    if (link) {
+      logLinkedInActivity(`👉 Clicking "Show results"${contextLabel ? ` (${contextLabel})` : ''}...`);
+      await link.scrollIntoViewIfNeeded().catch(() => {});
+      
+      // Use Playwright genuine user click so React's onClick handler intercepts with preventDefault()
+      await link.click({ timeout: 5000 }).catch(async () => {
+        // Fallback: dispatch MouseEvent with bubbles: true so React catches it without anchor navigation
+        await link.evaluate(node => {
+          const event = new MouseEvent('click', { bubbles: true, cancelable: true, view: window });
+          node.dispatchEvent(event);
+        }).catch(() => {});
+      });
 
-          return isFilterControl || hasShowResultsText || hasShowResultsAria;
-        }).catch(() => false);
-
-        if (isMatch) {
-          logLinkedInActivity(`👉 Clicking "Show results" link/button${contextLabel ? ` (${contextLabel})` : ''}...`);
-          await el.scrollIntoViewIfNeeded().catch(() => {});
-          await el.click().catch(() => {});
-          await el.evaluate(node => node.click()).catch(() => {});
-          await page.waitForLoadState('domcontentloaded').catch(() => {});
-          await page.waitForTimeout(2500);
-          return true;
-        }
-      }
+      logLinkedInActivity('⏳ Waiting for in-page filtered results to update...');
+      await page.waitForTimeout(6000);
+      return true;
+    } else {
+      logLinkedInActivity(`⚠️ Notice: "Show results" element not found.`);
     }
   } catch (err) {
-    logLinkedInActivity(`⚠️ Notice: Click "Show results" notice: ${err.message}`);
+    logLinkedInActivity(`⚠️ Notice: Click "Show results" error: ${err.message}`);
   }
   return false;
 }
@@ -204,9 +173,9 @@ async function applySearchAndFilters(page, config, profileData = {}) {
 
       if (locBtn) {
         await locBtn.click().catch(() => {});
-        await page.waitForTimeout(1200);
+        await page.waitForTimeout(1500);
 
-        // Search location in input with data-testid="typeahead-input" and placeholder="Add a location"
+        // Search location in input with placeholder="Add a location"
         const locInput = await page.$(
           'input[data-testid="typeahead-input"][placeholder*="Add a location"], ' +
           'input[placeholder*="Add a location"], input[aria-label*="Add a location"], ' +
@@ -230,15 +199,15 @@ async function applySearchAndFilters(page, config, profileData = {}) {
           if (firstOption) {
             logLinkedInActivity(`👉 Selecting location suggestion option...`);
             await firstOption.click().catch(() => {});
-            await page.waitForTimeout(1000);
+            await page.waitForTimeout(1500);
           } else {
             await page.keyboard.press('ArrowDown').catch(() => {});
             await page.keyboard.press('Enter').catch(() => {});
-            await page.waitForTimeout(1000);
+            await page.waitForTimeout(1500);
           }
         }
 
-        // Click "Show results" link / button inside dropdown
+        // Click strictly the "Show results" link/button
         await clickShowResults(page, 'Location filter');
       }
     } catch (locErr) {
@@ -258,7 +227,7 @@ async function applySearchAndFilters(page, config, profileData = {}) {
       const connBtn = await page.$('button:has-text("Connections"), button[aria-label*="Connections filter"]');
       if (connBtn) {
         await connBtn.click().catch(() => {});
-        await page.waitForTimeout(1000);
+        await page.waitForTimeout(1200);
       }
 
       // Click label with text '2nd'
@@ -656,6 +625,13 @@ export async function startLinkedInLoop(customConfig = {}) {
   let context = null;
 
   try {
+    if (activeBrowserContext) {
+      logLinkedInActivity('🔄 Closing previous test browser session before launching new instance...');
+      await activeBrowserContext.close().catch(() => {});
+      activeBrowserContext = null;
+      await new Promise(r => setTimeout(r, 1000));
+    }
+
     const launcher = await launchBrowser();
     context = launcher.context;
     activeBrowserContext = context;
