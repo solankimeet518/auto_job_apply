@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/banner.png" alt="Auto Job Apply Banner" width="100%" />
+</p>
+
 # 🚀 Auto Job Apply & LinkedIn Outreach Automation Bot
 
 An intelligent, AI-powered automation platform for job applications and recruiter networking. Built with **Bun**, **Playwright**, **React (Vite)**, and **Ollama (LangChain)** for fully local, private AI-driven question answering and connection note generation.
