@@ -16,11 +16,13 @@ export default function LinkedInBotDashboard({ profile }) {
   };
 
   // Configuration Form State
-  const [keywords, setKeywords] = useState(profile?.targetJob ? `${profile.targetJob} Recruiter` : 'Software Engineer Recruiter');
+  const [keywords, setKeywords] = useState('Technical Recruiter');
+  const [targetJob, setTargetJob] = useState(profile?.targetJob || 'Software Engineer');
   const [location, setLocation] = useState(getDefaultLocation);
   const [network2nd, setNetwork2nd] = useState(true);
   const [network3rd, setNetwork3rd] = useState(true);
   const [maxInvites, setMaxInvites] = useState(25);
+  const [startPage, setStartPage] = useState(1);
   const [noteMode, setNoteMode] = useState('ai'); // 'ai' | 'template'
   const [customTemplate, setCustomTemplate] = useState('Hi {name}, I noticed your work at {company} and would love to connect. I am an experienced {targetJob} exploring new opportunities.');
 
@@ -33,7 +35,7 @@ export default function LinkedInBotDashboard({ profile }) {
         setLocation(profile.targetLocation);
       }
       if (profile.targetJob) {
-        setKeywords(`${profile.targetJob} Recruiter`);
+        setTargetJob(profile.targetJob);
       }
     }
   }, [profile]);
@@ -125,7 +127,7 @@ export default function LinkedInBotDashboard({ profile }) {
         personName: testRecipientName.trim() || 'Anshuman Singh',
         personRole: testRecipientRole.trim() || 'Technical Recruiter',
         personCompany: testRecipientCompany.trim(),
-        targetJob: keywords || 'Software Engineer',
+        targetJob: targetJob || 'Software Engineer',
         noteMode,
         customTemplate,
         tone,
@@ -191,10 +193,12 @@ export default function LinkedInBotDashboard({ profile }) {
     try {
       await api.startLinkedInBot({
         keywords,
+        targetJob,
         location,
         network2nd,
         network3rd,
         maxInvites: Number(maxInvites) || 25,
+        startPage: Number(startPage) || 1,
         noteMode,
         customTemplate: noteMode === 'template' ? customTemplate : '',
         tone,
@@ -340,20 +344,69 @@ export default function LinkedInBotDashboard({ profile }) {
             🎯 Search & Target Settings
           </h3>
 
+          {/* 1. People / Audience to Search & Connect With */}
           <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase' }}>
-              Target Keywords / Role
-            </label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                🔍 People to Search & Connect With (LinkedIn Search)
+              </label>
+              <span style={{ fontSize: '11px', color: '#0A66C2', fontWeight: '600' }}>Search Query</span>
+            </div>
             <input
               type="text"
               value={keywords}
               onChange={e => setKeywords(e.target.value)}
-              placeholder="e.g. Software Engineer Recruiter, Engineering Manager..."
+              placeholder="e.g. Technical Recruiter, Engineering Manager, Talent Acquisition..."
               style={{
                 width: '100%', padding: '12px 16px', borderRadius: '10px',
                 background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none'
               }}
             />
+            {/* Quick Audience Suggestions */}
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', alignSelf: 'center' }}>Suggestions:</span>
+              {['Technical Recruiter', 'Engineering Manager', 'Talent Acquisition', 'HR Recruiter'].map(aud => (
+                <button
+                  key={aud}
+                  type="button"
+                  onClick={() => setKeywords(aud)}
+                  style={{
+                    fontSize: '11px', padding: '3px 8px', borderRadius: '6px',
+                    background: keywords === aud ? 'rgba(10, 102, 194, 0.3)' : 'rgba(255,255,255,0.05)',
+                    color: keywords === aud ? '#38BDF8' : 'var(--text-muted)',
+                    border: keywords === aud ? '1px solid #0A66C2' : '1px solid rgba(255,255,255,0.1)',
+                    cursor: 'pointer', transition: 'all 0.2s ease'
+                  }}
+                >
+                  {aud}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 2. Candidate Profession / Pitch Role for Note Generation */}
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                💼 Your Profession / Target Role (For AI Notes)
+              </label>
+              {profile?.targetJob && (
+                <span style={{ fontSize: '11px', color: '#10B981', fontWeight: '600' }}>From Profile</span>
+              )}
+            </div>
+            <input
+              type="text"
+              value={targetJob}
+              onChange={e => setTargetJob(e.target.value)}
+              placeholder="e.g. Software Engineer, Full Stack Developer, DevOps Engineer..."
+              style={{
+                width: '100%', padding: '12px 16px', borderRadius: '10px',
+                background: 'var(--input-bg)', border: '1px solid var(--border)', color: 'var(--text)', outline: 'none'
+              }}
+            />
+            <span style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+              Used in AI notes (e.g. "Hi [Name], as a <strong style={{ color: '#38BDF8' }}>{targetJob || 'Software Engineer'}</strong> exploring opportunities...")
+            </span>
           </div>
 
           <div>
@@ -486,6 +539,60 @@ export default function LinkedInBotDashboard({ profile }) {
             </div>
             <span style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
               Select anywhere from 1 to 1,000 invitations per outreach session.
+            </span>
+          </div>
+
+          {/* Starting Search Results Page */}
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                Start From Search Page Number
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Page</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={startPage}
+                  onChange={e => {
+                    const val = Number(e.target.value);
+                    if (val === 0) setStartPage('');
+                    else setStartPage(Math.max(1, Math.min(100, val)));
+                  }}
+                  onBlur={() => {
+                    if (!startPage || Number(startPage) < 1) setStartPage(1);
+                  }}
+                  className="input"
+                  style={{ width: '70px', padding: '4px 8px', fontSize: '13px', textAlign: 'center', fontWeight: '800', color: '#0A66C2' }}
+                />
+              </div>
+            </div>
+            {/* Quick Page Presets */}
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              {[1, 2, 3, 5, 10, 15, 20].map(pg => (
+                <button
+                  key={pg}
+                  type="button"
+                  onClick={() => setStartPage(pg)}
+                  style={{
+                    padding: '3px 8px',
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    borderRadius: '4px',
+                    border: '1px solid var(--border-color)',
+                    background: Number(startPage) === pg ? '#0A66C2' : 'var(--bg-secondary)',
+                    color: Number(startPage) === pg ? '#ffffff' : 'var(--text-main)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  Page {pg}
+                </button>
+              ))}
+            </div>
+            <span style={{ display: 'block', fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
+              Default is Page 1. Set to any page number to resume or jump directly to specific search results.
             </span>
           </div>
 
