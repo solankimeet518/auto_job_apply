@@ -14,12 +14,14 @@ export let linkedinBotState = {
     currentPage: 1,
   },
   config: {
-    keywords: 'Software Engineer Recruiter',
+    keywords: 'Technical Recruiter',
+    targetJob: 'Software Engineer',
     location: '',
     network2nd: true,
     network3rd: true,
     verifiedOnly: false,
     maxInvites: 25,
+    startPage: 1,
     customTemplate: '',
   },
 };
@@ -378,7 +380,43 @@ async function processProfileConnection(context, person, config, profileData) {
     await profilePage.goto(person.url, { waitUntil: 'domcontentloaded' }).catch(() => {});
     await profilePage.waitForTimeout(3000);
 
-    // 0. Check if connection request is already pending ("Pending, click to withdraw invitation")
+    // 0. Extract person's name (2nd <h2>) and About section (span[data-testid="expandable-text-box"])
+    const profileDetails = await profilePage.evaluate(() => {
+      // 1. Get name from 2nd <h2> element
+      const h2Elements = Array.from(document.querySelectorAll('h2'));
+      let extractedName = '';
+      if (h2Elements.length >= 2) {
+        extractedName = (h2Elements[1].innerText || '').trim();
+      } else if (h2Elements.length === 1) {
+        extractedName = (h2Elements[0].innerText || '').trim();
+      }
+
+      if (extractedName.includes('\n')) {
+        extractedName = extractedName.split('\n')[0].trim();
+      }
+
+      // 2. Extract About section detail from span[data-testid="expandable-text-box"]
+      const aboutBox = document.querySelector('span[data-testid="expandable-text-box"], [data-testid="expandable-text-box"] span, [data-testid="expandable-text-box"]');
+      let aboutText = '';
+      if (aboutBox) {
+        const hiddenSpan = aboutBox.querySelector('span.visually-hidden');
+        aboutText = (hiddenSpan ? hiddenSpan.innerText : aboutBox.innerText || '').trim();
+      }
+
+      return { extractedName, aboutText };
+    }).catch(() => ({ extractedName: '', aboutText: '' }));
+
+    if (profileDetails.extractedName && profileDetails.extractedName.length > 1 && profileDetails.extractedName !== 'LinkedIn Member') {
+      logLinkedInActivity(`👤 Verified profile name from page (2nd <h2>): "${profileDetails.extractedName}"`);
+      person.name = profileDetails.extractedName;
+    }
+
+    if (profileDetails.aboutText) {
+      person.about = profileDetails.aboutText;
+      logLinkedInActivity(`📖 Extracted About section for ${person.name} (${person.about.length} chars).`);
+    }
+
+    // 1. Check if connection request is already pending ("Pending, click to withdraw invitation")
     const pendingEl = await profilePage.$(
       'main a[aria-label*="Pending"], main button[aria-label*="Pending"], ' +
       'main a:has-text("Pending"), main button:has-text("Pending"), ' +
@@ -513,6 +551,39 @@ async function processProfileConnection(context, person, config, profileData) {
     // 4. Handle "Add a note" invitation modal dialog
     const modal = await profilePage.waitForSelector('div[role="dialog"], .artdeco-modal', { timeout: 4000 }).catch(() => null);
     if (modal) {
+      // Check if LinkedIn requires email verification to connect with this person
+      const isEmailRequired = await profilePage.evaluate(() => {
+        const dialog = document.querySelector('div[role="dialog"], .artdeco-modal');
+        if (!dialog) return false;
+
+        const emailInput = dialog.querySelector('input[type="email"], input[name="email"], input#email, input[placeholder*="email" i], input[aria-label*="email" i]');
+        if (emailInput && emailInput.offsetWidth > 0) return true;
+
+        const dialogText = (dialog.innerText || '').toLowerCase();
+        return dialogText.includes('enter their email') ||
+               dialogText.includes('enter an email') ||
+               dialogText.includes('to verify their email') ||
+               dialogText.includes('please enter the email') ||
+               dialogText.includes('email address to connect') ||
+               dialogText.includes('know each other');
+      }).catch(() => false);
+
+      if (isEmailRequired) {
+        logLinkedInActivity(`🔒 Email address required to connect with ${person.name}. Dismissing dialog and skipping profile.`);
+        const dismissBtn = await profilePage.$(
+          'div[role="dialog"] button[aria-label*="Dismiss"], ' +
+          'div[role="dialog"] button[aria-label*="Close"], ' +
+          'div[role="dialog"] button:has-text("Cancel"), ' +
+          'div[role="dialog"] button:has-text("Dismiss")'
+        );
+        if (dismissBtn) await dismissBtn.click().catch(() => {});
+        await profilePage.keyboard.press('Escape').catch(() => {});
+        await profilePage.waitForTimeout(1000);
+        linkedinBotState.stats.skipped++;
+        await profilePage.close().catch(() => {});
+        return false;
+      }
+
       const addNoteBtn = await profilePage.$(
         'div[role="dialog"] button:has-text("Add a note"), ' +
         'div[role="dialog"] a:has-text("Add a note"), ' +
@@ -524,12 +595,36 @@ async function processProfileConnection(context, person, config, profileData) {
         await addNoteBtn.click().catch(() => {});
         await profilePage.waitForTimeout(1000);
 
+        // Re-check if clicking "Add a note" prompted for email
+        const isEmailRequiredAfterNote = await profilePage.evaluate(() => {
+          const dialog = document.querySelector('div[role="dialog"], .artdeco-modal');
+          if (!dialog) return false;
+          const emailInput = dialog.querySelector('input[type="email"], input[name="email"], input#email, input[placeholder*="email" i], input[aria-label*="email" i]');
+          return !!(emailInput && emailInput.offsetWidth > 0);
+        }).catch(() => false);
+
+        if (isEmailRequiredAfterNote) {
+          logLinkedInActivity(`🔒 Email address required to connect with ${person.name}. Dismissing dialog and skipping profile.`);
+          const dismissBtn = await profilePage.$(
+            'div[role="dialog"] button[aria-label*="Dismiss"], ' +
+            'div[role="dialog"] button[aria-label*="Close"], ' +
+            'div[role="dialog"] button:has-text("Cancel")'
+          );
+          if (dismissBtn) await dismissBtn.click().catch(() => {});
+          await profilePage.keyboard.press('Escape').catch(() => {});
+          await profilePage.waitForTimeout(1000);
+          linkedinBotState.stats.skipped++;
+          await profilePage.close().catch(() => {});
+          return false;
+        }
+
         // 5. Generate personalized connection note with user fine-tuning & custom samples
         const note = await generateLinkedInNote({
           personName: person.name,
           personRole: person.headline,
           personCompany: person.location,
-          targetJob: config.keywords,
+          personAbout: person.about || '',
+          targetJob: config.targetJob || profileData.targetJob || 'Software Engineer',
           customTemplate: config.customTemplate,
           tone: config.tone,
           customInstructions: config.customInstructions,
@@ -609,7 +704,7 @@ export async function startLinkedInLoop(customConfig = {}) {
   const maxInvites = Number(config.maxInvites) || 25;
 
   logLinkedInActivity('🚀 Starting LinkedIn Connection Outreach Bot...');
-  logLinkedInActivity(`🎯 Target: "${config.keywords}" | Max Invitations: ${maxInvites}`);
+  logLinkedInActivity(`🎯 Search: "${config.keywords}" | Candidate Role: "${config.targetJob || 'Software Engineer'}" | Max Invites: ${maxInvites}`);
 
   let context = null;
 
@@ -646,7 +741,26 @@ export async function startLinkedInLoop(customConfig = {}) {
     // 3. Search and apply filters
     await applySearchAndFilters(page, config, profileData);
 
-    let pageNum = 1;
+    const startPage = Math.max(1, parseInt(config.startPage, 10) || 1);
+    let pageNum = startPage;
+    linkedinBotState.stats.currentPage = pageNum;
+
+    // If user specified a starting page > 1, navigate directly to it after filters are applied
+    if (startPage > 1) {
+      logLinkedInActivity(`⏩ User specified start page ${startPage}. Navigating to Search Page ${startPage}...`);
+      try {
+        const currentUrl = page.url();
+        const targetUrl = new URL(currentUrl);
+        targetUrl.searchParams.set('page', startPage.toString());
+        await page.goto(targetUrl.toString(), { waitUntil: 'domcontentloaded' }).catch(() => {});
+        await page.waitForTimeout(4000);
+        await page.waitForSelector('div[role="list"] [role="listitem"], [role="listitem"]', { timeout: 8000 }).catch(() => {});
+        logLinkedInActivity(`📍 Successfully arrived on Search Results Page ${startPage}.`);
+      } catch (pageNavErr) {
+        logLinkedInActivity(`⚠️ Notice: Direct navigation to page ${startPage} encountered: ${pageNavErr.message}. Continuing with current page.`);
+      }
+    }
+
     let hasNextPage = true;
 
     while (hasNextPage && linkedinBotState.status === 'running') {

@@ -155,6 +155,7 @@ export async function generateLinkedInNote({
   personName = '',
   personRole = '',
   personCompany = '',
+  personAbout = '',
   targetJob = '',
   customTemplate = '',
   tone = 'Professional',
@@ -181,6 +182,7 @@ export async function generateLinkedInNote({
       .replace(/\{fullName\}/gi, personName)
       .replace(/\{role\}/gi, personRole || 'your role')
       .replace(/\{company\}/gi, personCompany || 'your team')
+      .replace(/\{about\}/gi, personAbout || '')
       .replace(/\{targetJob\}/gi, myJob)
       .replace(/\{myName\}/gi, myName);
     
@@ -250,7 +252,7 @@ CANDIDATE DETAILS:
 RECIPIENT DETAILS:
 - Recipient Name: ${personName}
 - Recipient Headline/Title: ${personRole || 'Professional'}
-- Recipient Company: ${personCompany && personCompany.trim().length > 0 ? personCompany.trim() : 'Not provided / Unknown'}
+- Recipient Company: ${personCompany && personCompany.trim().length > 0 ? personCompany.trim() : 'Not provided / Unknown'}${personAbout && personAbout.trim().length > 0 ? `\n- Recipient About Summary: ${personAbout.trim().substring(0, 250)}` : ''}
 
 STYLE & TONE DIRECTIVE:
 - ${toneInstruction}
